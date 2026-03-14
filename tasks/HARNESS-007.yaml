@@ -1,0 +1,20 @@
+id: HARNESS-007
+title: "Add git log summary to orchestrator post-task logging"
+description: >
+  After a sub-agent completes a task, the orchestrator should log a git log
+  summary showing what commits the sub-agent made. Add a call after the
+  completion gitCommit in orchestrator.ts that runs
+  `git log --oneline -20` in the project directory and logs the output.
+  This gives visibility into sub-agent work without reading individual files.
+  Keep it best-effort (don't fail if git isn't initialized).
+status: done
+priority: P2
+assignee: sub-agent
+parent: null
+phase: "Phase 1.5: Observability"
+
+created: 2026-03-14T00:00:00Z
+updated: 2026-03-14T04:25:20.048Z
+
+deliverables:
+  - /workspace/project/orchestrator/src/orchestrator.ts

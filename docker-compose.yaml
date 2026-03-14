@@ -1,0 +1,80 @@
+# Agent Harness — Orchestrator + Sub-Agent Infrastructure
+#
+# Usage:
+#   docker compose up -d          # Start orchestrator
+#   docker compose logs -f        # Watch logs
+#   docker compose down           # Stop
+#
+# The orchestrator watches for tasks with status=assigned in project dirs
+# and spawns sub-agent containers to execute them.
+
+services:
+  proxy:
+    build: ./proxy
+    container_name: agent-harness-proxy
+    restart: unless-stopped
+    networks:
+      harness-net:
+        # Explicit alias so dynamically spawned sub-agent containers
+        # (not part of this compose project) can resolve the proxy by name
+        aliases:
+          - proxy
+    ports:
+      # Proxy — exposed locally for debugging (curl/mitmweb on localhost:8000)
+      - "8000:8000"
+      # Stats endpoint — token usage, rate limit state, queue depth
+      - "8001:8001"
+
+  orchestrator:
+    build: ./orchestrator
+    container_name: agent-harness-orchestrator
+    restart: unless-stopped
+    depends_on:
+      - proxy
+    networks:
+      - harness-net
+    volumes:
+      # Docker socket — orchestrator spawns sibling containers
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Projects — orchestrator reads task state, sub-agents work here
+      - /Users/josh/claude/pkb/projects:/workspace/projects
+      # PKB — read-only reference for sub-agents
+      - /Users/josh/claude/pkb:/workspace/pkb:ro
+      # Orchestrator persistent state
+      - harness-data:/app/data
+      # .env mounted as a live file so the orchestrator can re-read a fresh
+      # OAuth token at task dispatch time without requiring a restart
+      - ./orchestrator/.env:/app/.env:ro
+    ports:
+      # Credential proxy — sub-agent containers reach it via host.docker.internal:3001
+      - "3001:3001"
+    env_file:
+      - ./orchestrator/.env
+    environment:
+      - PROJECTS_DIR=/workspace/projects
+      - PKB_DIR=/workspace/pkb
+      # Host paths — orchestrator passes these to Docker for sibling container mounts
+      - HOST_PROJECTS_DIR=/Users/josh/claude/pkb/projects
+      - HOST_PKB_DIR=/Users/josh/claude/pkb
+      - CONTAINER_IMAGE=agent-harness:latest
+      - LOG_LEVEL=info
+      # Bind proxy to 0.0.0.0 so Docker port mapping works
+      - CREDENTIAL_PROXY_HOST=0.0.0.0
+      # Credential proxy upstream — chain through the rate-limiting mitmproxy
+      # so all API traffic gets token tracking and rate limit management.
+      # Flow: sub-agent → credential proxy (3001) → mitmproxy (8000) → api.anthropic.com
+      - ANTHROPIC_BASE_URL=http://proxy:8000
+      # HARNESS_NETWORK must match the network name below so spawned containers join it
+      - HARNESS_NETWORK=harness-net
+      - RATE_LIMIT_PROXY_URL=http://proxy:8000
+      - PROXY_STATS_URL=http://proxy:8001
+
+networks:
+  harness-net:
+    # Explicit name avoids compose project-name prefix so dynamically spawned
+    # sub-agent containers can join with --network harness-net
+    name: harness-net
+    driver: bridge
+
+volumes:
+  harness-data:

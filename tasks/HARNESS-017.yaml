@@ -1,0 +1,73 @@
+id: HARNESS-017
+title: "Fix sub-agent log streaming (iterate until passing)"
+description: >
+  Sub-agent stdout is fully buffered when piped through Docker — the orchestrator
+  sees no output until the container exits. The goal is real-time streaming:
+  each line Claude Code produces should appear in `docker logs agent-harness-orchestrator`
+  within a second or two of being written.
+
+  ## Success criterion
+
+  While a sub-agent task is running, `docker logs -f agent-harness-orchestrator`
+  shows lines prefixed with [TASK-ID] in real time (not a single burst at exit).
+
+  ## What is already known
+
+  - Root cause: Node.js detects a non-TTY pipe and uses full buffering for stdout.
+  - The orchestrator (orchestrator/src/orchestrator.ts) already streams
+    container.stdout to process.stdout line-by-line with [task.id] prefix.
+  - The container image (container/Dockerfile) does NOT yet use unbuffer.
+  - A candidate fix (adding `expect` package + `unbuffer` in entrypoint) is
+    already drafted in the Dockerfile but the image has NOT been rebuilt.
+
+  ## Iteration loop
+
+  Work in cycles until the success criterion passes:
+
+  1. **Make a change** — edit Dockerfile, entrypoint.sh, or orchestrator.ts.
+     Document your hypothesis in ipc/status.md before building.
+
+  2. **Rebuild** — run the appropriate compose command:
+     - Container image:   docker compose build agent-claude
+     - Orchestrator:      docker compose up -d --build orchestrator
+     - Both:              docker compose build && docker compose up -d
+
+  3. **Create a smoke test sub-task** — write a new task YAML to
+     tasks/HARNESS-016-retryN.yaml (increment N each attempt) with status: assigned.
+     The smoke test task should: write status.md, sleep 10 seconds, write result.md.
+     The sleep gives a window to observe whether lines appear mid-run.
+
+  4. **Observe** — run:
+       docker logs -f agent-harness-orchestrator
+     Watch for [HARNESS-016-retryN] lines appearing during the sleep window.
+     If they appear mid-run: SUCCESS. If they appear all at once at exit: FAIL.
+
+  5. **If failing** — form a new hypothesis, go to step 1.
+     Try at most 3 approaches before writing a failure summary and stopping.
+
+  ## Candidate approaches (in order of preference)
+
+  A. unbuffer in container (current draft in Dockerfile) — install expect, wrap
+     claude with `unbuffer` in entrypoint.sh. Keeps separate stdout/stderr.
+
+  B. docker run -t (allocate pseudo-TTY) — add `-t` to docker run args in
+     orchestrator.ts. Forces TTY mode so Node.js line-buffers. Side effect:
+     stdout and stderr are merged; strip \r from lines.
+
+  C. NODE_OPTIONS=--no-experimental-fetch with FORCE_COLOR or similar env vars
+     that affect Node.js buffering behaviour.
+
+  Read orchestrator/src/orchestrator.ts and container/Dockerfile before starting.
+  Write progress to ipc/status.md after each attempt.
+  Write final outcome to ipc/result.md when done (pass or exhausted attempts).
+status: review
+priority: P0
+assignee: sub-agent
+parent: null
+phase: "Meta: Developer Experience"
+
+created: 2026-03-14T21:45:00Z
+updated: 2026-03-14T10:48:45.507Z
+
+deliverables:
+  - ipc/result.md

@@ -1,0 +1,24 @@
+id: HARNESS-005
+title: "Add sessions section to resources.yaml"
+description: >
+  Extend resources.yaml with a sessions section for tracking Claude Code CLI
+  sessions as resources. Read notes/2026-03-14-session-flow.md for the data
+  model design. Add the sessions section with fields: id (Claude Code session
+  UUID), name (display name), project (linked project, nullable), directory
+  (working directory), state (interactive|autonomous|blocked|idle),
+  active_tasks (list of task IDs), blocked_reason (nullable string),
+  last_interaction (timestamp). Include a top session entry and one example
+  project session entry. Also update notes/resource-model.md with rationale
+  for the sessions section.
+status: in-progress
+priority: P1
+assignee: sub-agent
+parent: null
+phase: "Phase 1.6: Session Management"
+
+created: 2026-03-14T00:00:00Z
+updated: 2026-03-14T04:25:20.038Z
+
+deliverables:
+  - /workspace/project/resources.yaml
+  - /workspace/project/notes/resource-model.md

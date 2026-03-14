@@ -1,0 +1,20 @@
+id: HARNESS-001
+title: "Design project state schema"
+description: >
+  Design the directory layout and metadata file schemas for projects managed
+  by the harness. Includes project.yaml, tasks/ directory structure, and
+  resources.yaml. Produce a design rationale document explaining schema choices.
+status: in-progress  # backlog | assigned | in-progress | review | done
+priority: P0
+assignee: sub-agent  # sub-agent id or "user"
+parent: null         # parent task id for subtasks; null if top-level
+phase: "Phase 1: Project & State Model"
+
+created: 2026-03-14T00:00:00Z
+updated: 2026-03-14T00:00:00Z
+
+deliverables:
+  - /workspace/project/project.yaml
+  - /workspace/project/tasks/
+  - /workspace/project/resources.yaml
+  - /workspace/project/notes/2026-03-14-state-model.md

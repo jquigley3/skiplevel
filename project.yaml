@@ -1,0 +1,15 @@
+name: agent-harness
+status: active  # planning | active | paused | done
+priority: P0    # P0 (critical) | P1 (high) | P2 (medium) | P3 (low)
+scope_estimate: "use all tokens in next 15 hours"
+description: >
+  Build a harness for managing multiple Claude Code CLI instances, modeled on an
+  engineering organization. User (CEO) sets goals; agent (Head of Engineering)
+  plans and delegates; sub-agents (ICs) execute scoped work in sandboxes.
+
+timeline:
+  start: 2026-03-14
+  target: 2026-04-01
+
+created: 2026-03-14T00:00:00Z
+updated: 2026-03-14T00:00:00Z

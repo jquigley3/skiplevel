@@ -1,0 +1,33 @@
+id: HARNESS-011
+title: "Proxy smoke test: verify ANTHROPIC_BASE_URL and write env report"
+description: >
+  This is a diagnostic task to verify the rate-limiting proxy integration.
+
+  Do the following:
+
+  1. Check the value of the ANTHROPIC_BASE_URL environment variable. If it is
+     set to http://proxy:8000, the orchestrator wired the proxy correctly.
+     If it is empty or missing, the proxy integration is not working.
+
+  2. Make one small real API call to confirm traffic flows through the proxy.
+     Ask yourself a trivial question (e.g. "What is 2+2?") using the claude
+     CLI or just by completing this task normally — the act of executing this
+     task via Claude Code is itself an API call.
+
+  3. Write a result to /workspace/project/ipc/result.md containing:
+     - ANTHROPIC_BASE_URL value (or "not set")
+     - Whether the API call succeeded
+     - Any errors or unexpected behaviour
+
+  Do not modify any other files. This is a read-only diagnostic.
+status: review
+priority: P1
+assignee: sub-agent
+parent: null
+phase: "Phase 1: Infrastructure"
+
+created: 2026-03-14T13:30:00Z
+updated: 2026-03-14T07:57:07.053Z
+
+deliverables:
+  - ipc/result.md

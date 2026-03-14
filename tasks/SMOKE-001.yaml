@@ -1,0 +1,28 @@
+id: SMOKE-001
+title: "Streaming log smoke test"
+description: >
+  Minimal task to verify real-time log streaming from sub-agent to orchestrator.
+
+  Steps:
+  1. Write /workspace/project/ipc/status.md with content "step 1 of 3 — starting"
+  2. Use the Bash tool to run: sleep 5
+  3. Write /workspace/project/ipc/status.md with content "step 2 of 3 — midpoint"
+  4. Use the Bash tool to run: sleep 5
+  5. Write /workspace/project/ipc/result.md with content:
+       Task: SMOKE-001
+       Status: SUCCESS
+       Purpose: verified real-time streaming log output
+
+  Do not modify any other files. Do not read README.md or other context files.
+  Perform only the steps listed above.
+status: review
+priority: P0
+assignee: sub-agent
+parent: null
+phase: "Meta: Developer Experience"
+
+created: 2026-03-14T22:00:00Z
+updated: 2026-03-14T12:28:00.103Z
+
+deliverables:
+  - ipc/result.md

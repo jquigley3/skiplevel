@@ -1,0 +1,22 @@
+id: HARNESS-004
+title: "Draft the harness CLAUDE.md"
+description: >
+  Write the project-level CLAUDE.md that defines the agent's behavior for the
+  harness. This file is the "program" for user-facing interaction. It should
+  cover: session lifecycle (top session, project sessions), slash commands
+  (/go, /status, /blocked), onboarding prompts that teach users the workflow,
+  state transitions (interactive, autonomous, blocked, idle), and when to ask
+  vs act. Read notes/2026-03-14-session-flow.md for the full design. The tone
+  should be concise and engineering-oriented. Include examples of what the
+  agent should say at each transition point.
+status: in-progress
+priority: P0
+assignee: sub-agent
+parent: null
+phase: "Phase 1.6: Session Management"
+
+created: 2026-03-14T00:00:00Z
+updated: 2026-03-14T04:25:20.034Z
+
+deliverables:
+  - /workspace/project/CLAUDE.md

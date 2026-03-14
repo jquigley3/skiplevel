@@ -1,0 +1,58 @@
+id: HARNESS-010
+title: "Rate limiting: throttle and recovery strategy"
+description: >
+  Implemented in this session (2026-03-14) — mitmproxy reverse-proxy approach.
+
+  Decision: deploy a mitmproxy addon as a sidecar container (proxy/) that sits
+  between sub-agents and api.anthropic.com. Sub-agents connect via plain HTTP
+  (ANTHROPIC_BASE_URL=http://agent-harness-proxy:8080); proxy forwards to HTTPS
+  upstream. This gives us full visibility into requests and responses.
+
+  Resolved questions:
+
+  Q1: Resume vs restart on failure?
+  Deferred — the proxy queuing means sub-agents rarely fail due to rate limits.
+  If a container fails for another reason, the orchestrator retries (existing
+  behaviour). Session resume (claude --resume) can be tackled separately.
+
+  Q2: How to detect rate limit vs other failure?
+  Proxy handles this transparently: 429 responses trigger a sleep in the proxy
+  request hook, so sub-agent containers never see 429s — they just experience
+  latency. No exit-code parsing needed.
+
+  Q3: Which throttle mechanism?
+  Chose (c)+(d) via mitmproxy reverse proxy:
+  - proxy/addon.py queues requests when rate_limited_until > now (sleep in
+    async request hook — all queued requests release together when window passes)
+  - Parses anthropic-ratelimit-* headers (NOT x-ratelimit-*) and retry-after
+    on every response; separate RPM, ITPM, OTPM dimensions with RFC 3339 reset
+    timestamps converted to monotonic sleep targets
+  - Exposes live stats on :8001 (token usage, RPM, ITPM, OTPM, queue depth)
+  - Orchestrator passes --network harness-net and ANTHROPIC_BASE_URL to
+    sub-agents so they reach the proxy automatically
+
+  Files created/modified:
+  - proxy/addon.py        — mitmproxy addon (rate limiting + token tracking)
+  - proxy/Dockerfile      — mitmdump container
+  - docker-compose.yaml   — proxy service + harness-net network
+  - orchestrator/src/config.ts     — RATE_LIMIT_PROXY_URL, PROXY_STATS_URL, HARNESS_NETWORK
+  - orchestrator/src/orchestrator.ts — fetchProxyStats(), --network, ANTHROPIC_BASE_URL
+  - start.sh              — one-command launch (build + compose up + log tail)
+
+  Open: add notes/rate-limiting-design.md as a proper design doc.
+status: done
+priority: P0
+assignee: sub-agent
+parent: null
+needs-clarification: false
+phase: "Phase 3: Scheduling & Resource Management"
+
+created: 2026-03-14T00:00:00Z
+updated: 2026-03-14T21:00:00Z
+
+deliverables:
+  - proxy/addon.py
+  - proxy/Dockerfile
+  - docker-compose.yaml
+  - orchestrator/src/orchestrator.ts
+  - start.sh

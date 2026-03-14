@@ -1,0 +1,68 @@
+id: HARNESS-018
+title: "Write AGENT.md — developer inner loop guide"
+description: >
+  Write /workspace/project/AGENT.md as the definitive developer onboarding doc.
+  A previous draft may exist — read it, but treat this as a rewrite with a
+  higher bar.
+
+  ## Success criterion
+
+  A developer or sub-agent who has never seen this project can read AGENT.md
+  and successfully: make a change, rebuild the affected service, dispatch a
+  smoke test, and confirm the result — without asking anyone for help.
+
+  ## What to cover
+
+  ### 1. Stack overview (one paragraph)
+  Three services in docker-compose: orchestrator (Node.js), proxy (mitmproxy),
+  agent-claude (sub-agent container image). Orchestrator polls tasks/*.yaml for
+  status=assigned and spawns sub-agent containers via docker.sock.
+
+  ### 2. The developer inner loop
+  Model this section after HARNESS-017 — it is the canonical example of a
+  well-structured iterating task. The loop is:
+
+    make change → rebuild service → dispatch smoke test → observe → iterate
+
+  Be explicit about what "observe" means: `docker logs -f agent-harness-orchestrator`
+  shows [TASK-ID] prefixed lines from running sub-agents. Proxy stats are at
+  http://localhost:8001.
+
+  ### 3. Rebuild commands
+  Per service:
+  - Container image: docker compose build agent-claude
+  - Orchestrator:    docker compose up -d --build orchestrator
+  - Proxy:           docker compose up -d --build proxy
+  - Everything:      docker compose up -d --build
+
+  ### 4. Dispatching a task manually
+  Edit tasks/<ID>.yaml, set `status: assigned`. The orchestrator polls every
+  few seconds. To create a smoke test: copy an existing task YAML, give it a
+  new ID, set status: assigned.
+
+  ### 5. Checking results
+  - Sub-agent writes progress to ipc/status.md, result to ipc/result.md (in
+    the worktree, not the project root — path shown in orchestrator logs)
+  - Task YAML status progresses: assigned → in-progress → review (or back to
+    assigned on failure)
+
+  ### 6. Common pitfalls
+  - Docker runs on the host; orchestrator uses HOST_PROJECTS_DIR for volume
+    mounts, not the container-internal PROJECTS_DIR
+  - Sub-agent output is buffered unless the container image includes unbuffer
+    (see container/Dockerfile)
+  - Each task gets its own git worktree under worktrees/<task-id>/
+
+  Read README.md, docker-compose.yaml, and HARNESS-017.yaml for accurate
+  details. Keep AGENT.md under 150 lines — cut anything a developer can infer.
+status: review
+priority: P1
+assignee: sub-agent
+parent: null
+phase: "Meta: Developer Experience"
+
+created: 2026-03-14T22:00:00Z
+updated: 2026-03-14T10:07:44.816Z
+
+deliverables:
+  - /workspace/project/AGENT.md

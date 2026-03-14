@@ -1,0 +1,38 @@
+id: HARNESS-009
+title: "Give each sub-agent its own git worktree"
+description: >
+  Currently all sub-agents working on the same project share one working
+  directory, causing concurrent write conflicts and dirty git state. Each
+  sub-agent should get its own git worktree so their changes are isolated until
+  review/merge. Design and implement this:
+
+  1. Before dispatching a task, create a worktree:
+     `git worktree add ../worktrees/<task-id> -b agent/<task-id>`
+     (relative to the project directory)
+  2. Mount the worktree directory (not the project root) into the container
+  3. After the sub-agent completes (review state), the orchestrator or user
+     review process merges/rebases the worktree branch into main
+  4. Clean up the worktree after merge: `git worktree remove`
+
+  The project directory must be a git repo. Handle the case where it isn't
+  (fall back to current behavior, log a warning). The HOST_PROJECTS_DIR path
+  translation still applies for the worktree path.
+
+  Read orchestrator/src/orchestrator.ts (dispatchTask function) to understand
+  the current mount logic. Read notes/2026-03-14-design-decisions.md for
+  context on why git was chosen for sharing state between agents.
+
+  Also remove the now-outdated task in tasks.md about "ensure each project has
+  git initialized" and reconcile with this worktree approach.
+status: done
+priority: P0
+assignee: sub-agent
+parent: null
+phase: "Phase 1.5: Observability"
+
+created: 2026-03-14T00:00:00Z
+updated: 2026-03-14T21:00:00Z
+
+deliverables:
+  - /workspace/project/orchestrator/src/orchestrator.ts
+  - /workspace/project/notes/worktree-isolation.md

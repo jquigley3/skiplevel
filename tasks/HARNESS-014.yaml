@@ -1,0 +1,29 @@
+id: HARNESS-014
+title: "Proxy smoke test #4: verify rate limit headers are populated"
+description: >
+  Smoke test after proxy rate limiting upgrade. Verify that the new
+  anthropic-ratelimit-* header parsing is working.
+
+  1. Check ANTHROPIC_BASE_URL — expected value is http://proxy:8000.
+
+  2. After completing any API call (the task execution itself counts),
+     fetch the proxy stats from http://proxy:8001 and record the values.
+
+  3. Write /workspace/project/ipc/result.md with:
+     - ANTHROPIC_BASE_URL value (or "not set")
+     - Full proxy stats JSON (from http://proxy:8001)
+     - Whether rpm_limit, itpm_limit, otpm_limit are non-null (success criterion)
+     - Any errors encountered
+
+  Do not modify any other files.
+status: review
+priority: P0
+assignee: sub-agent
+parent: null
+phase: "Phase 1: Infrastructure"
+
+created: 2026-03-14T20:00:00Z
+updated: 2026-03-14T08:48:02.297Z
+
+deliverables:
+  - ipc/result.md

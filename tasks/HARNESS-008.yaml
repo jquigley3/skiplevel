@@ -1,0 +1,23 @@
+id: HARNESS-008
+title: "Fix YAML parser for multi-line descriptions"
+description: >
+  The parseTaskYaml function in orchestrator/src/orchestrator.ts uses a simple
+  regex-based line parser that doesn't handle YAML multi-line scalars (> or |).
+  This means task descriptions using folded scalars come through as empty
+  strings in the IPC task.md. Either replace with a proper YAML parser (e.g.
+  js-yaml or yaml npm package) or extend the parser to handle the > and |
+  scalar types. The parser must continue to extract: id, title, description,
+  status, priority, assignee, parent. Add the chosen package to package.json
+  if using a library.
+status: review
+priority: P1
+assignee: sub-agent
+parent: null
+phase: "Phase 1: Project & State Model"
+
+created: 2026-03-14T00:00:00Z
+updated: 2026-03-14T09:32:35.558Z
+
+deliverables:
+  - /workspace/project/orchestrator/src/orchestrator.ts
+  - /workspace/project/orchestrator/package.json

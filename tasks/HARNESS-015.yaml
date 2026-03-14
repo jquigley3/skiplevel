@@ -1,0 +1,52 @@
+id: HARNESS-015
+title: "Write AGENT.md for developers"
+description: >
+  Write /workspace/project/AGENT.md — a developer onboarding doc that lets a
+  new developer (or sub-agent) iterate on the harness stack without manual
+  trial-and-error.
+
+  Cover the full inner loop:
+
+  1. Making a change — which files to edit for common changes:
+     - Proxy logic: proxy/addon.py
+     - Orchestrator logic: orchestrator/src/orchestrator.ts
+     - Sub-agent container: container/Dockerfile or entrypoint
+
+  2. Rebuilding and restarting — exact commands:
+     - docker compose up -d --build <service>  (proxy, orchestrator, or all)
+     - docker compose down && docker compose up -d  (full restart)
+     - How to verify the new version is running (docker ps, docker logs)
+
+  3. Re-queuing a smoke test — how to dispatch a task manually:
+     - Edit tasks/<ID>.yaml and set status: assigned
+     - The orchestrator polls every few seconds and will pick it up
+
+  4. Watching logs — useful commands:
+     - docker logs -f agent-harness-orchestrator-1  (orchestrator + sub-agent output)
+     - docker logs -f agent-harness-proxy-1         (mitmproxy addon logs)
+     - Sub-agent output is prefixed with [TASK-ID] per line
+
+  5. Checking proxy stats:
+     - curl http://localhost:8001 | jq  (from host)
+     - Fields to check: rpm_limit, itpm_limit, otpm_limit (null = header bug),
+       total_requests, queued_requests, rate_limited
+
+  6. End-to-end smoke test workflow:
+     - Make change → rebuild service → set a smoke test task to assigned →
+       watch logs → check ipc/result.md → mark task done or investigate
+
+  Read the existing README.md, docker-compose.yaml, and proxy/addon.py for
+  accurate service names, ports, and paths before writing.
+
+  Do not modify any other files.
+status: done
+priority: P1
+assignee: sub-agent
+parent: null
+phase: "Meta: Developer Experience"
+
+created: 2026-03-14T21:15:00Z
+updated: 2026-03-14T09:39:40.030Z
+
+deliverables:
+  - /workspace/project/AGENT.md

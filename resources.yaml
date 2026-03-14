@@ -1,0 +1,160 @@
+# Harness Resource Registry
+# Global resource pool for the agent harness.
+# Tracks machines, API accounts, token budgets, and resource-to-project allocation.
+#
+# Placement note: this file currently lives inside the agent-harness project because
+# agent-harness IS the harness. When a separate harness root is established (above
+# individual projects), move this file there.
+
+# ---------------------------------------------------------------------------
+# MACHINES
+# Physical hosts or VMs that can run sub-agents via Docker.
+# ---------------------------------------------------------------------------
+machines:
+  - id: mac-workstation
+    name: "macOS Workstation"
+    type: workstation          # workstation | server | vm | ci-runner
+    os: macOS
+    status: available          # available | busy | offline | reserved
+    capabilities:
+      - docker                 # can launch Docker containers
+      - sandbox-exec           # Apple sandbox-exec available (macOS only)
+      - claude-cli             # Claude Code CLI installed natively
+    notes: >
+      Primary development machine. Docker Desktop installed.
+      sandbox-exec available for lighter-weight isolation.
+      Hosts the PKB at /Users/josh/claude/pkb/.
+
+# ---------------------------------------------------------------------------
+# ACCOUNTS
+# Claude API / CLI credentials. One entry per account or API key.
+# The harness uses these to authenticate sub-agent container launches.
+# ---------------------------------------------------------------------------
+accounts:
+  - id: claude-personal
+    name: "Claude Personal (OAuth)"
+    type: oauth                # oauth | api-key
+    provider: anthropic
+    machine: mac-workstation   # which machine holds this credential
+    credential_location: "macOS keychain"
+    notes: >
+      Primary Claude Code CLI OAuth account. Credential is extracted from the
+      macOS keychain at launch time and passed to sub-agent containers via
+      the CLAUDE_ACCESS_TOKEN environment variable. Sub-agents must not
+      persist or leak this token.
+    token_budget:
+      refresh_interval: daily         # daily | hourly | per-request | none
+      refresh_schedule: "~midnight Pacific"
+      plan: pro                        # free | pro | max | api — affects limits
+      usage_limit: null                # null = plan limit unknown; integer = tokens/day if known
+      usage_estimate: null             # populated at runtime by harness query
+      last_refresh: null               # ISO timestamp; populated at runtime
+      notes: >
+        Pro plan token limits are not exposed via API as of 2026-03.
+        Usage estimate populated by parsing `claude` CLI output or
+        querying usage.anthropic.com when available.
+
+# ---------------------------------------------------------------------------
+# TOKEN WINDOWS
+# Scheduling constraints derived from account token budgets.
+# A window defines: how many tokens remain, and when the budget resets.
+# The scheduler uses windows to decide whether to launch a new sub-agent now
+# or wait for the next refresh.
+# ---------------------------------------------------------------------------
+token_windows:
+  - id: claude-personal-daily
+    account: claude-personal
+    window_type: daily         # daily | hourly | rolling-30d
+    description: >
+      Daily token budget for the claude-personal account. Resets ~midnight
+      Pacific. The harness must not schedule a new sub-agent if the estimated
+      remaining tokens are below the task's minimum token requirement.
+    current_usage_estimate: null    # tokens used so far this window; populated at runtime
+    tokens_remaining: null          # estimated tokens left; populated at runtime
+    next_refresh: null              # ISO timestamp of next budget reset; populated at runtime
+    min_task_tokens: 10000          # minimum tokens required to attempt a new task
+    notes: >
+      Token usage is estimated, not exact. The harness should apply a safety
+      margin (e.g., 20%) to avoid hitting the limit mid-task. If tokens_remaining
+      is null, assume budget is available and proceed; the CLI will error if
+      actually exhausted.
+
+# ---------------------------------------------------------------------------
+# ALLOCATION
+# Maps resources (machine + account) to projects for scheduling.
+# The scheduler reads this to determine which account/machine runs each project's
+# sub-agents. Unallocated projects inherit the default allocation.
+# ---------------------------------------------------------------------------
+allocation:
+  default:
+    machine: mac-workstation
+    account: claude-personal
+    max_concurrent_agents: 1    # MVP: sequential only; increase when parallel is implemented
+    notes: >
+      Single-machine, single-account setup. All projects share the same
+      resource pool for now. When multiple accounts or machines are added,
+      per-project overrides allow priority projects to claim dedicated resources.
+
+  per_project: []
+  # Example per-project override (uncomment and fill when needed):
+  # - project: complaint-automator
+  #   machine: mac-workstation
+  #   account: claude-personal
+  #   max_concurrent_agents: 1
+  #   priority_boost: true    # run this project's tasks ahead of default queue
+
+# ---------------------------------------------------------------------------
+# SESSIONS
+# Claude Code CLI sessions as trackable resources.
+# Each entry represents one Claude Code session (top-level or project-scoped).
+# The harness records session IDs and state so users can resume, and the
+# orchestrator can see which tasks are associated with which session.
+# ---------------------------------------------------------------------------
+sessions:
+  - id: null                           # Claude Code session UUID (set at runtime)
+    name: "top"
+    project: null                      # no specific project — cross-project planning
+    directory: /workspace/project      # working directory for the session
+    state: interactive                 # interactive | autonomous | blocked | idle
+    active_tasks: []
+    blocked_reason: null
+    last_interaction: null             # ISO timestamp; populated at runtime
+    notes: >
+      Top-level session. Entry point for the user. Used for cross-project
+      planning, prioritization, and kicking off project sessions. Long-lived;
+      rarely "done." Maps to the CEO's desk in the harness model.
+
+  - id: null                           # Claude Code session UUID (set at runtime)
+    name: "agent-harness"
+    project: agent-harness
+    directory: /workspace/project
+    state: autonomous                  # dispatched tasks; user can switch away
+    active_tasks:
+      - HARNESS-004
+      - HARNESS-005
+    blocked_reason: null
+    last_interaction: null             # ISO timestamp; populated at runtime
+    notes: >
+      Example project session scoped to the agent-harness project. State is
+      autonomous while sub-agent tasks are running. Transitions to blocked
+      when all dispatched tasks reach review status or a task fails.
+
+# ---------------------------------------------------------------------------
+# FUTURE EXTENSIONS (not yet implemented)
+# ---------------------------------------------------------------------------
+# machines:
+#   - id: cloud-vm-01
+#     type: vm
+#     os: Linux (Ubuntu 24.04)
+#     provider: aws-ec2
+#     status: offline
+#     capabilities: [docker, claude-cli]
+#
+# accounts:
+#   - id: claude-api-key-01
+#     type: api-key
+#     provider: anthropic
+#     notes: "API key for automated/non-interactive sub-agents"
+#
+# For parallel workloads: add multiple accounts and set max_concurrent_agents > 1
+# per machine, with per-account token windows tracked independently.

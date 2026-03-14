@@ -1,0 +1,24 @@
+id: HARNESS-013
+title: "Proxy smoke test #3: verify proxy:8000 after compose restart"
+description: >
+  Smoke test after proxy rebuild. Verify the new configuration is live.
+
+  1. Check ANTHROPIC_BASE_URL — expected value is http://proxy:8000.
+
+  2. Write /workspace/project/ipc/result.md with:
+     - ANTHROPIC_BASE_URL value (or "not set")
+     - Whether execution succeeded
+     - Any errors
+
+  Do not modify any other files.
+status: done
+priority: P0
+assignee: sub-agent
+parent: null
+phase: "Phase 1: Infrastructure"
+
+created: 2026-03-14T14:15:00Z
+updated: 2026-03-14T08:08:22.277Z
+
+deliverables:
+  - ipc/result.md

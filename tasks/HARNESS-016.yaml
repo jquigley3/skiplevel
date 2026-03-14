@@ -1,0 +1,26 @@
+id: HARNESS-016
+title: "Streaming log smoke test"
+description: >
+  Dummy task to verify real-time log streaming from sub-agent to orchestrator.
+
+  1. Write /workspace/project/ipc/status.md with "step 1 of 3 — starting"
+  2. Sleep 5 seconds (use Bash tool: sleep 5)
+  3. Write /workspace/project/ipc/status.md with "step 2 of 3 — midpoint"
+  4. Sleep 5 seconds
+  5. Write /workspace/project/ipc/result.md with:
+     - Task: HARNESS-016
+     - Status: SUCCESS
+     - Purpose: verified streaming log output is visible in real time
+
+  Do not modify any other files.
+status: review
+priority: P1
+assignee: sub-agent
+parent: null
+phase: "Meta: Developer Experience"
+
+created: 2026-03-14T21:30:00Z
+updated: 2026-03-14T09:43:08.056Z
+
+deliverables:
+  - ipc/result.md
