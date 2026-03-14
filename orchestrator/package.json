@@ -1,0 +1,29 @@
+{
+  "name": "macro-claw",
+  "version": "0.1.0",
+  "description": "Task orchestrator that dispatches work to isolated Claude Code CLI instances.",
+  "type": "module",
+  "main": "dist/orchestrator.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/orchestrator.js",
+    "dev": "tsx src/orchestrator.ts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "tsx --test test/smoke.test.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
