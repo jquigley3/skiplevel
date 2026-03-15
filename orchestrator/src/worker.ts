@@ -320,6 +320,10 @@ export function runWorker(input: WorkerInput): Promise<WorkerResult> {
           containerName,
         });
       } else {
+        const stderrSnippet = stderr.trim().slice(-500);
+        const detail =
+          stderrSnippet ||
+          (resultText?.trim().slice(-500) ?? 'Unknown error');
         resolve({
           status: 'error',
           exitCode,
@@ -327,7 +331,7 @@ export function runWorker(input: WorkerInput): Promise<WorkerResult> {
           transcript,
           costUsd,
           containerName,
-          error: `Exit code ${exitCode}: ${stderr.slice(-500)}`,
+          error: `Exit code ${exitCode}: ${detail}`,
         });
       }
     });

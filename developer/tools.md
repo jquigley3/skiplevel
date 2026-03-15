@@ -91,6 +91,10 @@ curl -s "$MC2_API_URL/api/tasks/abc123-..." \
   "error": null,
   "cost_usd": 0.0234,
   "duration_ms": 15000,
+  "exit_code": 0,
+  "worker_container": "macro-claw-abc123-...",
+  "retry_count": 0,
+  "retry_after": null,
   "created_at": "2026-03-15 01:00:00",
   "started_at": "2026-03-15 01:00:05",
   "finished_at": "2026-03-15 01:00:20"

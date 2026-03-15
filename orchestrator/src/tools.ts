@@ -79,6 +79,10 @@ function jobSummary(job: Job): Record<string, unknown> {
     error: job.error,
     cost_usd: job.cost_usd,
     duration_ms: job.duration_ms,
+    exit_code: job.exit_code,
+    worker_container: job.worker_container,
+    retry_count: job.retry_count ?? 0,
+    retry_after: job.retry_after,
     created_at: job.created_at,
     started_at: job.started_at,
     finished_at: job.finished_at,
@@ -180,8 +184,12 @@ function handleListTasks(
 // Host-facing endpoints (/api/jobs) — no auth, trusted callers
 // ---------------------------------------------------------------------------
 
-function jobDetail(job: Job): Record<string, unknown> {
-  return {
+interface JobDetailOptions {
+  includeTranscript?: boolean;
+}
+
+function jobDetail(job: Job, opts: JobDetailOptions = {}): Record<string, unknown> {
+  const out: Record<string, unknown> = {
     id: job.id,
     status: job.status,
     prompt: job.prompt,
@@ -194,10 +202,18 @@ function jobDetail(job: Job): Record<string, unknown> {
     error: job.error,
     cost_usd: job.cost_usd,
     duration_ms: job.duration_ms,
+    exit_code: job.exit_code,
+    worker_container: job.worker_container,
+    retry_count: job.retry_count ?? 0,
+    retry_after: job.retry_after,
     created_at: job.created_at,
     started_at: job.started_at,
     finished_at: job.finished_at,
   };
+  if (opts.includeTranscript && job.transcript) {
+    out.transcript = job.transcript;
+  }
+  return out;
 }
 
 async function handleSubmitJob(
@@ -238,13 +254,16 @@ async function handleSubmitJob(
   json(res, 201, { id, status: 'pending' });
 }
 
-function handleGetJob(res: ServerResponse, jobId: string): void {
+function handleGetJob(req: IncomingMessage, res: ServerResponse, jobId: string): void {
   const job = getJob(jobId);
   if (!job) {
     json(res, 404, { error: 'Job not found' });
     return;
   }
-  json(res, 200, jobDetail(job));
+  const parsed = new URL(req.url ?? '', 'http://localhost');
+  const include = parsed.searchParams.get('include');
+  const includeTranscript = include?.split(',').includes('transcript') ?? false;
+  json(res, 200, jobDetail(job, { includeTranscript }));
 }
 
 function handleListJobs(req: IncomingMessage, res: ServerResponse): void {
@@ -252,7 +271,7 @@ function handleListJobs(req: IncomingMessage, res: ServerResponse): void {
   const status = parsed.searchParams.get('status') ?? undefined;
   const limit = parseInt(parsed.searchParams.get('limit') ?? '50', 10);
   const jobs = listJobs(status, limit);
-  json(res, 200, { jobs: jobs.map(jobDetail) });
+  json(res, 200, { jobs: jobs.map((j) => jobDetail(j)) });
 }
 
 async function handleJobsRoute(
@@ -277,7 +296,7 @@ async function handleJobsRoute(
   if (jobIdMatch) {
     const jobId = jobIdMatch[1];
     if (req.method === 'GET') {
-      handleGetJob(res, jobId);
+      handleGetJob(req, res, jobId);
     } else {
       json(res, 405, { error: 'Method not allowed' });
     }

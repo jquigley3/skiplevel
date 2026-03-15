@@ -165,7 +165,7 @@ curl -s -X POST http://localhost:3001/api/jobs \
     "max_budget_usd": 2.00
   }'
 
-# Check status
+# Check status (add ?include=transcript for full stream-json log)
 curl -s http://localhost:3001/api/jobs/<job-id>
 
 # List all jobs
