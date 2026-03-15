@@ -5,7 +5,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/orchestrator.js",
-    "dev": "tsx src/orchestrator.ts"
+    "dev": "tsx src/orchestrator.ts",
+    "test": "node node_modules/tsx/dist/cli.mjs --test ../test/integration/*.test.ts",
+    "test:watch": "node node_modules/tsx/dist/cli.mjs --test --watch ../test/integration/*.test.ts"
   },
   "dependencies": {
     "pino": "^9.6.0",

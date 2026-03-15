@@ -1,0 +1,100 @@
+id: HARNESS-019
+title: 'Fix path defaults and add new-user setup scaffolding'
+description: >
+  The repo has two hard-coded user-specific paths that break for any new
+  contributor. Fix them, document all required env vars, and add a sample
+  project so a fresh clone is immediately runnable.
+
+  ## Problems to fix
+
+  1. `docker-compose.yaml` hard-codes:
+       - volume: `/Users/josh/claude/pkb/projects:/workspace/projects`
+       - volume: `/Users/josh/claude/pkb:/workspace/pkb:ro`
+       - env:    `HOST_PROJECTS_DIR=/Users/josh/claude/pkb/projects`
+       - env:    `HOST_PKB_DIR=/Users/josh/claude/pkb`
+     These must use env vars so any machine can run this.
+
+  2. No `.env.example` exists, so a new user cannot know what to put in
+     `orchestrator/.env`.
+
+  3. No sample project exists in the repo — new users have no target to
+     dispatch their first task against.
+
+  ## Required changes
+
+  ### A. `docker-compose.yaml`
+  Replace the four hard-coded values above with env var references:
+    - volumes: `${HOST_PROJECTS_DIR}:/workspace/projects`
+    - volumes: `${HOST_PKB_DIR:-/dev/null}:/workspace/pkb:ro`
+    - environment HOST_PROJECTS_DIR: `${HOST_PROJECTS_DIR}`
+    - environment HOST_PKB_DIR: `${HOST_PKB_DIR:-}`
+  Add a comment at the top of the file pointing to `.env.example` for
+  configuration.
+
+  ### B. `.env.example` (repo root)
+  Document every env var a new user must know about. Include:
+    - `HOST_PROJECTS_DIR` — absolute host path to the projects directory
+      (default suggestion: `<repo-root>/projects`, e.g. `/path/to/macro-claw/projects`)
+    - `HOST_PKB_DIR` — optional; path to shared read-only reference dir
+      (can be left empty — PKB mount is optional)
+    - `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` — one required
+    - `CONTAINER_IMAGE` — default `agent-harness:latest`
+    - `LOG_LEVEL` — default `info`
+  Group vars by: Required / Optional / Advanced. Add a "Quick start"
+  comment block at the top with the minimum 3 lines needed to get running.
+
+  ### C. `orchestrator/.env.example`
+  Same pattern but scoped to vars the orchestrator process reads directly
+  (the `orchestrator/.env` file that gets mounted into the container).
+  At minimum: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`.
+  Copy the format from the root `.env.example`.
+
+  ### D. `projects/smoke/` — sample project
+  Create a minimal project structure a new user can immediately dispatch:
+
+    projects/smoke/
+      project.yaml          # name: smoke, status: active, priority: P1
+      CLAUDE.md             # one-paragraph agent behavior: write ipc/result.md
+      tasks/
+        SMOKE-001.yaml      # status: assigned, priority: P1
+                            # description: "Write a single line to ipc/result.md
+                            #   confirming the sub-agent ran successfully."
+                            # deliverables: [ipc/result.md]
+
+  The SMOKE-001 task must be self-contained — a sub-agent with no prior
+  context should be able to complete it from the description alone.
+
+  ## What NOT to change
+  - `orchestrator/src/config.ts` is already correct (reads from env).
+  - Do not change any TypeScript source files.
+  - Do not change `start.sh`, `dev.sh`, or `Makefile` if they exist.
+
+  ## Verification
+  After your changes, a user should be able to:
+    1. Copy `.env.example` → `.env` and fill in HOST_PROJECTS_DIR and an API key
+    2. Run `docker compose up -d` without errors
+    3. Dispatch `projects/smoke/tasks/SMOKE-001.yaml` and watch it run
+
+status: assigned
+priority: P1
+assignee: sub-agent
+parent: null
+phase: 'Phase 1: New User Flow'
+
+created: 2026-03-14T23:00:00Z
+updated: 2026-03-14T23:00:00Z
+
+deliverables:
+  - docker-compose.yaml
+  - .env.example
+  - orchestrator/.env.example
+  - projects/smoke/project.yaml
+  - projects/smoke/CLAUDE.md
+  - projects/smoke/tasks/SMOKE-001.yaml
+
+agent_spec:
+  isolation: docker
+  model: claude-sonnet-4-6
+  effort: medium
+  max_turns: 30
+  permission_mode: bypassPermissions

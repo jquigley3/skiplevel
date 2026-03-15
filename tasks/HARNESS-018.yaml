@@ -1,5 +1,5 @@
 id: HARNESS-018
-title: "Write AGENT.md — developer inner loop guide"
+title: 'Write AGENT.md — developer inner loop guide'
 description: >
   Write /workspace/project/AGENT.md as the definitive developer onboarding doc.
   A previous draft may exist — read it, but treat this as a rewrite with a
@@ -59,7 +59,7 @@ status: review
 priority: P1
 assignee: sub-agent
 parent: null
-phase: "Meta: Developer Experience"
+phase: 'Meta: Developer Experience'
 
 created: 2026-03-14T22:00:00Z
 updated: 2026-03-14T10:07:44.816Z

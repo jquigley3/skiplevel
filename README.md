@@ -1,12 +1,15 @@
-# Agent Harness
+# ClawForge
 
 **Status:** Planning
-**Started:** 2026-03-14
-**Goal:** Build a harness for managing multiple Claude Code CLI instances, modeled on an engineering organization.
+
+> Agent harness for managing multiple Claude Code CLI instances.
+> **Started:** 2026-03-14
+> **Goal:** Build a harness for managing multiple Claude Code CLI instances, modeled on an engineering organization.
 
 ## Overview
 
 A system where:
+
 - **User** (CEO) sets goals and priorities
 - **Agent** (Head of Engineering) plans, schedules, and delegates
 - **Sub-agents** (Project Managers / ICs) execute scoped work in sandboxes
@@ -33,6 +36,7 @@ The harness manages: project definitions, resource tracking (machines, API token
 ## Sandbox Model
 
 Sub-agents run via `sandbox-exec` with a profile that:
+
 - Allows read/write to the assigned project directory
 - Allows read-only access to shared resources (PKB, harness config)
 - Allows network (Claude API)

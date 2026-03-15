@@ -13,24 +13,29 @@
 export interface AgentSpec {
   // Execution environment
   isolation?: 'docker' | 'local' | 'worktree' | 'apple-container';
-  image?: string;       // Docker/Apple Container image name
+  image?: string; // Docker/Apple Container image name
   timeout_ms?: number;
 
   // Claude CLI flags
   model?: string;
   effort?: 'low' | 'medium' | 'high' | 'max';
   max_turns?: number;
-  permission_mode?: 'default' | 'plan' | 'acceptEdits' | 'dontAsk' | 'bypassPermissions';
+  permission_mode?:
+    | 'default'
+    | 'plan'
+    | 'acceptEdits'
+    | 'dontAsk'
+    | 'bypassPermissions';
   max_budget_usd?: number;
-  system_prompt?: string;        // replaces default system prompt
+  system_prompt?: string; // replaces default system prompt
   append_system_prompt?: string; // appended to default system prompt
 
   // Tool access
-  allowed_tools?: string[];      // --allowedTools: execute without prompting
-  disallowed_tools?: string[];   // --disallowedTools: remove from context
+  allowed_tools?: string[]; // --allowedTools: execute without prompting
+  disallowed_tools?: string[]; // --disallowedTools: remove from context
 
   // Session identity
-  session_name?: string;         // --name: display label
+  session_name?: string; // --name: display label
   no_session_persistence?: boolean; // --no-session-persistence
 
   // MCP servers — inline JSON string, written to a temp file at resolve time
@@ -39,7 +44,7 @@ export interface AgentSpec {
 
   // File overrides (paths relative to project dir or absolute)
   // docker: mounted into the container; local: used directly
-  claude_md?: string;     // overrides /workspace/project/CLAUDE.md in container
+  claude_md?: string; // overrides /workspace/project/CLAUDE.md in container
   settings_json?: string; // overrides /home/node/.claude/settings.json in container
 
   // Additional mounts (docker/apple-container only)
@@ -50,6 +55,10 @@ export interface AgentSpec {
     readonly?: boolean;
   }>;
 
+  // Override the claude binary path (local/worktree isolation only).
+  // Used by tests to substitute a fake-agent script in place of claude.
+  claude_binary?: string;
+
   // Extra environment variables passed to the sub-agent process
   env?: Record<string, string>;
 }
@@ -59,7 +68,7 @@ export interface AgentSpec {
 // ---------------------------------------------------------------------------
 
 export interface WorktreeInfo {
-  path: string;   // absolute path to the worktree directory
+  path: string; // absolute path to the worktree directory
   branch: string; // branch name: agent/<taskId>-<suffix>
 }
 
@@ -70,11 +79,11 @@ export interface WorktreeInfo {
 export interface SessionConfig {
   // Identity & paths
   taskId: string;
-  projectDir: string;   // absolute path on orchestrator filesystem
-  workDir: string;      // absolute path (worktree or projectDir)
-  hostWorkDir: string;  // workDir translated to host path (for docker -v flags)
-  ipcDir: string;       // path.join(workDir, 'ipc')
-  suffix: string;       // random hex suffix shared with container/worktree name
+  projectDir: string; // absolute path on orchestrator filesystem
+  workDir: string; // absolute path (worktree or projectDir)
+  hostWorkDir: string; // workDir translated to host path (for docker -v flags)
+  ipcDir: string; // path.join(workDir, 'ipc')
+  suffix: string; // random hex suffix shared with container/worktree name
   containerName: string; // harness-<taskId-lower>-<suffix>
 
   // Execution strategy
@@ -102,11 +111,14 @@ export interface SessionConfig {
   strict_mcp_config?: boolean;
 
   // File overrides: resolved absolute host paths
-  settings_file?: string;  // resolved path to settings.json override
+  settings_file?: string; // resolved path to settings.json override
   claude_md_path?: string; // resolved path to CLAUDE.md override
 
   // Validated extra mounts
   extra_mounts: Array<{ host: string; container: string; readonly: boolean }>;
+
+  // Override the claude binary (local/worktree only; used by tests)
+  claude_binary?: string;
 
   // Environment for the spawned process
   env: Record<string, string>;
@@ -117,9 +129,9 @@ export interface SessionConfig {
 // ---------------------------------------------------------------------------
 
 export interface SpawnSpec {
-  command: string[];           // argv; command[0] is the binary (docker/claude/container)
+  command: string[]; // argv; command[0] is the binary (docker/claude/container)
   env: Record<string, string>; // process env for spawn()
-  workdir: string;             // cwd for spawn()
+  workdir: string; // cwd for spawn()
   timeout_ms: number;
-  containerName?: string;      // present for docker and apple-container strategies
+  containerName?: string; // present for docker and apple-container strategies
 }

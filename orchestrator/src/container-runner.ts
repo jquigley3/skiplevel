@@ -286,7 +286,12 @@ export async function runContainerAgent(
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
-  const containerArgs = buildContainerArgs(mounts, containerName, input.prompt, input.sessionId);
+  const containerArgs = buildContainerArgs(
+    mounts,
+    containerName,
+    input.prompt,
+    input.sessionId,
+  );
 
   logger.debug(
     {
@@ -345,7 +350,10 @@ export async function runContainerAgent(
           transcriptLines.push(trimmed);
         } else if (transcriptLines.length === CONTAINER_MAX_OUTPUT_SIZE / 200) {
           transcriptLines.push('{"type":"truncated"}');
-          logger.warn({ group: group.name }, 'Transcript truncated due to size limit');
+          logger.warn(
+            { group: group.name },
+            'Transcript truncated due to size limit',
+          );
         }
 
         try {
@@ -353,11 +361,15 @@ export async function runContainerAgent(
 
           if (event.type === 'system' && event.subtype === 'init') {
             newSessionId = event.session_id as string;
-            logger.debug({ group: group.name, sessionId: newSessionId }, 'Session initialized');
+            logger.debug(
+              { group: group.name, sessionId: newSessionId },
+              'Session initialized',
+            );
           } else if (event.type === 'result') {
             resultText = (event.result as string) ?? null;
             totalCostUsd = event.total_cost_usd as number | undefined;
-            newSessionId = newSessionId ?? (event.session_id as string | undefined);
+            newSessionId =
+              newSessionId ?? (event.session_id as string | undefined);
             hadStreamingOutput = true;
             resetTimeout();
 
@@ -373,7 +385,10 @@ export async function runContainerAgent(
           }
         } catch {
           // Non-JSON line — unexpected in stream-json mode but not fatal
-          logger.debug({ group: group.name, line: trimmed }, 'Non-JSON stdout line');
+          logger.debug(
+            { group: group.name, line: trimmed },
+            'Non-JSON stdout line',
+          );
         }
       }
     });
@@ -491,13 +506,20 @@ export async function runContainerAgent(
       const sessionResultPath = path.join(ipcDir, 'session-result.json');
 
       fs.writeFileSync(transcriptPath, transcriptLines.join('\n') + '\n');
-      fs.writeFileSync(sessionResultPath, JSON.stringify({
-        sessionId: newSessionId,
-        result: resultText,
-        totalCostUsd,
-        exitCode: code,
-        durationMs: duration,
-      }, null, 2) + '\n');
+      fs.writeFileSync(
+        sessionResultPath,
+        JSON.stringify(
+          {
+            sessionId: newSessionId,
+            result: resultText,
+            totalCostUsd,
+            exitCode: code,
+            durationMs: duration,
+          },
+          null,
+          2,
+        ) + '\n',
+      );
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const logFile = path.join(logsDir, `container-${timestamp}.log`);
@@ -580,7 +602,12 @@ export async function runContainerAgent(
       // Wait for any queued onOutput calls to settle, then resolve
       outputChain.then(() => {
         logger.info(
-          { group: group.name, duration, newSessionId, hasResult: !!resultText },
+          {
+            group: group.name,
+            duration,
+            newSessionId,
+            hasResult: !!resultText,
+          },
           'Container completed',
         );
         resolve({

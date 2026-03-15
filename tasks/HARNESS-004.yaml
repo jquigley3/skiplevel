@@ -1,5 +1,5 @@
 id: HARNESS-004
-title: "Draft the harness CLAUDE.md"
+title: 'Draft the harness CLAUDE.md'
 description: >
   Write the project-level CLAUDE.md that defines the agent's behavior for the
   harness. This file is the "program" for user-facing interaction. It should
@@ -13,7 +13,7 @@ status: in-progress
 priority: P0
 assignee: sub-agent
 parent: null
-phase: "Phase 1.6: Session Management"
+phase: 'Phase 1.6: Session Management'
 
 created: 2026-03-14T00:00:00Z
 updated: 2026-03-14T04:25:20.034Z

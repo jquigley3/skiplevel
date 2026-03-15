@@ -9,11 +9,13 @@ manages the lifecycle and state transitions.
 ## Session Types
 
 ### Top Session
+
 - The entry point. User launches `claude` in the harness root directory.
 - Purpose: cross-project planning, prioritization, adding/removing projects.
 - This session is long-lived and rarely "done" — it's the CEO's desk.
 
 ### Project Session
+
 - Scoped to a single project directory (e.g. `pkb/projects/agent-harness/`).
 - Created when the user decides to focus on a specific project.
 - Uses `claude --resume <session-id>` to return to an ongoing conversation
@@ -25,6 +27,7 @@ manages the lifecycle and state transitions.
 ## Flow
 
 ### 1. Start in the Top Session
+
 ```
 $ claude
 > "Let's look at what needs attention across projects"
@@ -33,6 +36,7 @@ $ claude
 ```
 
 ### 2. Create a Project Session
+
 The top session can fork into a project session. This is natural because the
 conversation flows from "planning across projects" into "discussing a specific
 project" — forking preserves the context that led to the decision.
@@ -48,14 +52,18 @@ new `claude -n "agent-harness" --session-id <uuid>` in the project directory.
 The harness records the session ID and links it to the project.
 
 ### 3. Transition to Autonomous
+
 Once requirements are clear, the user says "go" (or equivalent). The harness:
+
 - Creates task YAML files from the scoped work
 - Sets tasks to `assigned` so the orchestrator picks them up
 - Marks the session state as `autonomous`
 - The user can close the terminal or switch away
 
 ### 4. Work on Something Else
+
 The user returns to the top session (or picks another project session):
+
 ```
 $ claude --resume
 > [session picker shows:]
@@ -66,7 +74,9 @@ $ claude --resume
 ```
 
 ### 5. Handle Blocked Sessions
+
 A session becomes `blocked` when:
+
 - All dispatched sub-agent tasks reach `review` status
 - A sub-agent explicitly signals "need user decision" (future)
 - A task fails and needs human judgment
@@ -75,6 +85,7 @@ The user's workflow for multiple autonomous projects is: **work through each
 blocked session**, make decisions, re-scope, say "go" again, move to the next.
 
 This is the core loop:
+
 ```
 for each blocked session:
     resume session
@@ -85,7 +96,9 @@ for each blocked session:
 ```
 
 ### 6. Notifications
+
 When a session transitions to `blocked`, the user should be notified:
+
 - Terminal: badge/bell if session is in background
 - NanoClaw/WhatsApp: "agent-harness tasks complete, ready for review"
 - Dashboard: session state visible at a glance (future)
@@ -94,6 +107,7 @@ When a session transitions to `blocked`, the user should be notified:
 
 **The user is the bottleneck.** The system maximizes the value of user
 attention by:
+
 - Keeping context warm (session resume, not re-explain)
 - Clearly signaling what needs attention (blocked sessions)
 - Running everything else autonomously in the background
@@ -106,28 +120,28 @@ Sessions are tracked as resources alongside machines and accounts:
 ```yaml
 sessions:
   - id: <claude-code-session-uuid>
-    name: agent-harness              # display name for picker
-    project: agent-harness           # linked project (soft, not enforced)
-    directory: /path/to/project      # working directory for the session
-    state: autonomous                # interactive | autonomous | blocked | idle
-    active_tasks:                    # tasks dispatched in current autonomous phase
+    name: agent-harness # display name for picker
+    project: agent-harness # linked project (soft, not enforced)
+    directory: /path/to/project # working directory for the session
+    state: autonomous # interactive | autonomous | blocked | idle
+    active_tasks: # tasks dispatched in current autonomous phase
       - HARNESS-003
       - HARNESS-004
-    blocked_reason: null             # human-readable reason when blocked
+    blocked_reason: null # human-readable reason when blocked
     last_interaction: 2026-03-14T10:30:00Z
 ```
 
 The top session is just another session entry with no specific project link:
 
 ```yaml
-  - id: <top-session-uuid>
-    name: top
-    project: null
-    directory: /Users/josh/claude/pkb/projects/agent-harness
-    state: interactive
-    active_tasks: []
-    blocked_reason: null
-    last_interaction: 2026-03-14T10:00:00Z
+- id: <top-session-uuid>
+  name: top
+  project: null
+  directory: /Users/josh/claude/pkb/projects/agent-harness
+  state: interactive
+  active_tasks: []
+  blocked_reason: null
+  last_interaction: 2026-03-14T10:00:00Z
 ```
 
 ## Onboarding & Guided Prompting
@@ -162,6 +176,7 @@ file. When a user starts fresh:
    user-facing intelligence is prompt-driven.
 
 This means the harness is two things:
+
 - **Infrastructure**: orchestrator, containers, task YAML, IPC (TypeScript)
 - **Behavior**: `CLAUDE.md` that shapes how Claude interacts with the user
   (prompt engineering)
@@ -187,5 +202,5 @@ a matter of editing the prompt, not shipping code.
      `AskUserQuestion` to confirm: "Ready to dispatch 3 tasks to sub-agents
      and switch to autonomous mode. Go? [Y/n]". Claude Code CLI has
      `AskUserQuestion` as a built-in tool for exactly this pattern.
-  General principle: slash commands for direct actions, natural language
-  triggers should _suggest_ the action with a yes/no prompt.
+     General principle: slash commands for direct actions, natural language
+     triggers should _suggest_ the action with a yes/no prompt.

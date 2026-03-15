@@ -1,0 +1,6 @@
+# Default owners for everything in the repo
+* @jquigley3
+
+# Core orchestrator
+/orchestrator/ @jquigley3
+/container/ @jquigley3

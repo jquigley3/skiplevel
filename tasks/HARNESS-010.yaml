@@ -1,5 +1,5 @@
 id: HARNESS-010
-title: "Rate limiting: throttle and recovery strategy"
+title: 'Rate limiting: throttle and recovery strategy'
 description: >
   Implemented in this session (2026-03-14) — mitmproxy reverse-proxy approach.
 
@@ -45,7 +45,7 @@ priority: P0
 assignee: sub-agent
 parent: null
 needs-clarification: false
-phase: "Phase 3: Scheduling & Resource Management"
+phase: 'Phase 3: Scheduling & Resource Management'
 
 created: 2026-03-14T00:00:00Z
 updated: 2026-03-14T21:00:00Z

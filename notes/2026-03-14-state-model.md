@@ -24,6 +24,7 @@ parse. The pattern mirrors how many CI systems separate `.github/workflows/`
 from documentation.
 
 **Field choices:**
+
 - `status` as an enum (`planning | active | paused | done`) gives the scheduler
   a clear signal: only `active` projects consume resources.
 - `priority` as `P0`–`P3` matches common engineering conventions (P0 = fire,
@@ -45,6 +46,7 @@ from documentation.
 `tasks.md` is good for quick human review but hard to update atomically. When
 two sub-agents (or the harness and a sub-agent) update tasks concurrently,
 a single file creates merge conflicts. Individual files mean:
+
 - Each task is an independent unit of work on the filesystem.
 - `ls tasks/` gives a quick count and ID list.
 - `cat tasks/HARNESS-001.yaml` gives full context on one task.
@@ -57,9 +59,11 @@ project prefix (`HARNESS`) makes it obvious which project a task belongs to
 when IDs appear in logs or messages.
 
 **Status state machine:**
+
 ```
 backlog → assigned → in-progress → review → done
 ```
+
 - `backlog`: known but not started
 - `assigned`: a sub-agent or user has been given the task
 - `in-progress`: actively being worked
@@ -96,7 +100,7 @@ fields (`usage_estimate: null`) signal intent without blocking the rest of the
 schema. When the query is wired up, only this file changes.
 
 **`token_windows` section:**
-Separates the *account credential* (who am I) from the *scheduling window*
+Separates the _account credential_ (who am I) from the _scheduling window_
 (how much can I do before I need to wait). Future: multiple windows per account
 (e.g., hourly burst + daily total), multiple accounts for parallel workloads.
 
@@ -106,6 +110,7 @@ Separates the *account credential* (who am I) from the *scheduling window*
 
 The PKB uses `projects/<name>/README.md` + `tasks.md` as the baseline. This
 schema extends that pattern:
+
 - `project.yaml` sits alongside `README.md` — prose and metadata co-located.
 - `tasks/` replaces the flat `tasks.md` for machine-managed state while
   `tasks.md` remains for human-authored notes (the harness will reconcile them

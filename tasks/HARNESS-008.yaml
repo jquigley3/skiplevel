@@ -1,5 +1,5 @@
 id: HARNESS-008
-title: "Fix YAML parser for multi-line descriptions"
+title: 'Fix YAML parser for multi-line descriptions'
 description: >
   The parseTaskYaml function in orchestrator/src/orchestrator.ts uses a simple
   regex-based line parser that doesn't handle YAML multi-line scalars (> or |).
@@ -13,7 +13,7 @@ status: review
 priority: P1
 assignee: sub-agent
 parent: null
-phase: "Phase 1: Project & State Model"
+phase: 'Phase 1: Project & State Model'
 
 created: 2026-03-14T00:00:00Z
 updated: 2026-03-14T09:32:35.558Z

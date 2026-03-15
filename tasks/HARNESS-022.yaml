@@ -1,0 +1,116 @@
+id: HARNESS-022
+title: 'Write integration test for new-user first-task flow'
+description: >
+  Write an integration test that validates the orchestrator's core loop
+  without Docker, without real credentials, and without any external services.
+  This is the automated equivalent of the new-user flow: fresh directory →
+  task dispatched → task reaches `review` status.
+
+  ## Test framework
+  Use Node.js built-in `node:test` and `node:assert`. No new test dependencies.
+  The test runner is: `node --test test/integration/*.test.ts` (via tsx for TS).
+
+  ## What the test does
+
+  ### Setup
+  1. Create a temp directory (`os.mkdtemp`) as the harness root.
+  2. Inside it, create a minimal project structure:
+       <tmp>/
+         tasks/
+           TEST-001.yaml   # status: assigned, priority: P1
+                           # description: "Write ipc/result.md"
+                           # deliverables: [ipc/result.md]
+                           # agent_spec:
+                           #   isolation: local
+                           #   claude_binary: <abs-path-to>/scripts/fake-agent.sh
+         ipc/
+           task.md         # (empty — orchestrator will overwrite)
+  3. Set env vars for the orchestrator:
+       PROJECTS_DIR=<tmp>
+       HOST_PROJECTS_DIR=<tmp>   (local isolation — no Docker, host path = container path)
+       PKB_DIR=/dev/null
+       HOST_PKB_DIR=/dev/null
+       TASK_POLL_INTERVAL=500    (fast polling for tests)
+       CONTAINER_IMAGE=none      (not used — isolation is local)
+  4. Spawn the orchestrator process (`tsx src/orchestrator.ts`) with those env vars,
+     cwd = `<repo-root>/orchestrator`.
+
+  ### Exercise
+  5. Wait up to 15 seconds for TEST-001.yaml to have `status: review`.
+     Poll the YAML file every 500ms.
+
+  ### Assert
+  6. TEST-001.yaml `status` === `review`
+  7. `<tmp>/ipc/result.md` exists (or `<tmp>/worktrees/<worktree-dir>/ipc/result.md` —
+     check whichever path the orchestrator writes to)
+  8. Orchestrator process is still running (hasn't crashed)
+
+  ### Teardown
+  9. Kill the orchestrator process.
+  10. Remove the temp directory.
+
+  ## Implementation notes
+
+  ### claude_binary / local isolation
+  The orchestrator's `session-builder.ts` handles `isolation: local`. Read
+  `orchestrator/src/session-builder.ts` to understand how `agent_spec` maps
+  to the spawned command. The fake-agent needs to be specified in a way the
+  session-builder will use it as the claude binary. Look for a `claude_binary`
+  or equivalent field in `AgentSpec` / `SessionConfig`. If no such field
+  exists, add it as a minimal change to `session-builder.ts` and `session-spec.ts`
+  (one optional field: `claude_binary?: string` that overrides the default
+  `claude` command when set). Document this addition in a code comment.
+
+  ### Worktree path
+  With `isolation: local`, the orchestrator may still create a git worktree.
+  Inspect the orchestrator source to determine where `ipc/result.md` is
+  written and poll accordingly.
+
+  ### Avoiding git noise
+  The temp directory is outside the repo, so git worktree creation will fail
+  unless the temp dir is inside a git repo. Either:
+    a. Create the temp dir inside the repo root under `test/tmp/` (gitignored), OR
+    b. Run `git init` in the temp dir before starting the orchestrator.
+  Choose whichever is simpler. Add `test/tmp/` to `.gitignore` if needed.
+
+  ## Files to create/modify
+
+  - `test/integration/first-task.test.ts` — the test (described above)
+  - `orchestrator/package.json` — add `"test": "tsx --test test/integration/*.test.ts"`
+    and `"test:watch": "tsx --test --watch test/integration/*.test.ts"`
+  - `.gitignore` (repo root) — add `test/tmp/` if you use that approach
+  - `orchestrator/src/session-spec.ts` — add `claude_binary?: string` if needed
+  - `orchestrator/src/session-builder.ts` — use `claude_binary` when set, if needed
+
+  ## Acceptance criteria
+  From repo root:
+    cd orchestrator && npm test
+  Should output: `✓ [first-task] task reaches review status` (or similar)
+  and exit 0. Must complete in under 20 seconds.
+
+  ## What NOT to do
+  - Do not use Jest, Mocha, Vitest, or any external test runner.
+  - Do not make any HTTP requests in the test.
+  - Do not require Docker or credentials.
+  - Do not hardcode absolute paths outside of what's derived at runtime
+    (use `path.resolve(__dirname, ...)` etc).
+
+status: assigned
+priority: P1
+assignee: sub-agent
+parent: null
+phase: 'Phase 1: New User Flow'
+
+created: 2026-03-14T23:00:00Z
+updated: 2026-03-14T23:00:00Z
+
+deliverables:
+  - test/integration/first-task.test.ts
+  - orchestrator/package.json
+
+agent_spec:
+  isolation: docker
+  model: claude-sonnet-4-6
+  effort: high
+  max_turns: 50
+  permission_mode: bypassPermissions

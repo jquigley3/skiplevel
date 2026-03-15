@@ -5,6 +5,7 @@
 ## Problem
 
 The current model blocks the top-level Claude Code CLI session while sub-agents run. This means:
+
 - User can't do other work in the same session
 - If user closes the session, sub-agents may be orphaned
 - No way for sub-agents to continue working while user is away (overnight, etc.)
@@ -27,12 +28,14 @@ Claude Code CLI is the right **interface** for the user (CEO) to interact with t
 ## Likely direction
 
 **Build on NanoClaw.** It already solves the orchestrator problem:
+
 - Persistent Node.js process (launchd/systemd)
 - Container runner with credential proxy, mount security
 - Task scheduler for recurring jobs
 - Multi-channel input (WhatsApp, Telegram, Slack, etc.)
 
 What's needed:
+
 - A **CLI channel** as the primary input for planning and review
 - Extend the task scheduler to manage `tasks/*.yaml` queue
 - Map NanoClaw concepts: group = project, scheduled tasks = harness task dispatch

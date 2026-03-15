@@ -29,6 +29,7 @@ project-dir/
    - Expected deliverables
 
 2. **Host launches sub-agent** with `--print` or `-p` flag, pointing it at `ipc/task.md`:
+
    ```
    run.sh <project-dir> -p "Read /workspace/project/ipc/task.md and execute the task described.
    Write progress to /workspace/project/ipc/status.md as you work.
@@ -41,7 +42,7 @@ project-dir/
 
 ### Why not git for IPC?
 
-Git is for sharing *project state* across agents over time. IPC is ephemeral task-level communication within a single agent invocation. Files in `ipc/` are transient — they can be cleaned up between runs.
+Git is for sharing _project state_ across agents over time. IPC is ephemeral task-level communication within a single agent invocation. Files in `ipc/` are transient — they can be cleaned up between runs.
 
 ### Future: concurrent agents
 

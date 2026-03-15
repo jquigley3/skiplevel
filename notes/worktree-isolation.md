@@ -57,6 +57,7 @@ not the orchestrator-container paths. `toHostPath()` applies the same
 `PROJECTS_DIR → HOST_PROJECTS_DIR` prefix substitution to worktree paths.
 
 Example:
+
 ```
 Container sees:  /workspace/worktrees/HARNESS-009
 Host mount:      /Users/foo/harness/worktrees/HARNESS-009
@@ -75,6 +76,7 @@ projects that haven't been git-initialized yet.
 ## Merge / Cleanup
 
 After review:
+
 1. User (or orchestrator review step) runs:
    ```
    git merge --no-ff agent/<taskId>

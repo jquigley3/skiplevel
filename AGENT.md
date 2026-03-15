@@ -27,18 +27,19 @@ The running containers do not see file edits — only a rebuild picks them up.
 
 ### What requires a rebuild?
 
-| Changed file | Required action |
-|---|---|
-| `orchestrator/src/**` | `./dev.sh rebuild` |
-| `orchestrator/Dockerfile` | `./dev.sh rebuild` |
-| `container/Dockerfile` | `./dev.sh rebuild` |
-| `proxy/addon.py` | `./dev.sh rebuild` |
-| `docker-compose.yaml` | `./dev.sh rebuild` |
-| `orchestrator/.env` | nothing — re-read live at each dispatch |
-| `tasks/*.yaml` | nothing — polled directly from disk |
-| `AGENT.md`, `README.md`, etc. | nothing |
+| Changed file                  | Required action                         |
+| ----------------------------- | --------------------------------------- |
+| `orchestrator/src/**`         | `./dev.sh rebuild`                      |
+| `orchestrator/Dockerfile`     | `./dev.sh rebuild`                      |
+| `container/Dockerfile`        | `./dev.sh rebuild`                      |
+| `proxy/addon.py`              | `./dev.sh rebuild`                      |
+| `docker-compose.yaml`         | `./dev.sh rebuild`                      |
+| `orchestrator/.env`           | nothing — re-read live at each dispatch |
+| `tasks/*.yaml`                | nothing — polled directly from disk     |
+| `AGENT.md`, `README.md`, etc. | nothing                                 |
 
 ### 1. Make a change
+
 Edit the relevant file: orchestrator source (`orchestrator/src/`), container
 (`container/Dockerfile`), or proxy (`proxy/addon.py`).
 
@@ -73,6 +74,7 @@ Proxy stats (token usage, rate limits): `./dev.sh status` or http://localhost:80
 ### 5. Check the result
 
 Sub-agent output is in the task's worktree, not the project root:
+
 - Progress: `worktrees/<TASK-ID>/ipc/status.md`
 - Result: `worktrees/<TASK-ID>/ipc/result.md`
 

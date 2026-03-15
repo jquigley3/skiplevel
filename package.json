@@ -1,0 +1,22 @@
+{
+  "name": "clawforge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent harness for managing multiple Claude Code CLI instances",
+  "scripts": {
+    "build": "cd orchestrator && npm run build",
+    "typecheck": "cd orchestrator && npx tsc --noEmit",
+    "format": "prettier --write .",
+    "format:fix": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "cd orchestrator && npm test",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.0.0",
+    "prettier": "^3.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

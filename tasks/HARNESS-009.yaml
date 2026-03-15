@@ -1,5 +1,5 @@
 id: HARNESS-009
-title: "Give each sub-agent its own git worktree"
+title: 'Give each sub-agent its own git worktree'
 description: >
   Currently all sub-agents working on the same project share one working
   directory, causing concurrent write conflicts and dirty git state. Each
@@ -28,7 +28,7 @@ status: done
 priority: P0
 assignee: sub-agent
 parent: null
-phase: "Phase 1.5: Observability"
+phase: 'Phase 1.5: Observability'
 
 created: 2026-03-14T00:00:00Z
 updated: 2026-03-14T21:00:00Z

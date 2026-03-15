@@ -1,5 +1,5 @@
 id: HARNESS-002
-title: "Design resource model"
+title: 'Design resource model'
 description: >
   Design the resource model for machines, API accounts, and token windows.
   Define how resources.yaml tracks available Claude accounts, token budgets,
@@ -9,7 +9,7 @@ status: review
 priority: P0
 assignee: sub-agent
 parent: null
-phase: "Phase 1: Project & State Model"
+phase: 'Phase 1: Project & State Model'
 
 created: 2026-03-14T00:00:00Z
 updated: 2026-03-14T03:56:44.818Z

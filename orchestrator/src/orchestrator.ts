@@ -27,17 +27,36 @@ import { loadTaskFile, updateTaskStatus, TaskFile } from './task-loader.js';
 import { resolveSessionConfig, SessionBuilder } from './session-builder.js';
 import { WorktreeInfo } from './session-spec.js';
 
-
 /** Scan all projects for tasks with status=assigned */
 function findAssignedTasks(): TaskFile[] {
   const tasks: TaskFile[] = [];
 
   if (!fs.existsSync(PROJECTS_DIR)) return tasks;
 
-  for (const project of fs.readdirSync(PROJECTS_DIR)) {
-    const tasksDir = path.join(PROJECTS_DIR, project, 'tasks');
-    if (!fs.existsSync(tasksDir) || !fs.statSync(tasksDir).isDirectory())
-      continue;
+  // Collect candidate project directories.
+  // Two layouts are supported:
+  //   A) Multi-project:  PROJECTS_DIR/<project>/tasks/*.yaml  (standard)
+  //   B) Single-project: PROJECTS_DIR/tasks/*.yaml            (repo-as-project)
+  const projectDirs: Array<{ name: string; dir: string }> = [];
+
+  // Layout B — PROJECTS_DIR itself has a tasks/ subdir
+  if (fs.existsSync(path.join(PROJECTS_DIR, 'tasks'))) {
+    projectDirs.push({ name: path.basename(PROJECTS_DIR), dir: PROJECTS_DIR });
+  }
+
+  // Layout A — each subdirectory of PROJECTS_DIR that has a tasks/ subdir
+  for (const entry of fs.readdirSync(PROJECTS_DIR)) {
+    const dir = path.join(PROJECTS_DIR, entry);
+    if (!fs.statSync(dir).isDirectory()) continue;
+    if (entry === 'tasks' || entry === 'worktrees') continue; // skip reserved names
+    if (fs.existsSync(path.join(dir, 'tasks'))) {
+      projectDirs.push({ name: entry, dir });
+    }
+  }
+
+  for (const { name: project, dir: projectDir } of projectDirs) {
+    const tasksDir = path.join(projectDir, 'tasks');
+    if (!fs.statSync(tasksDir).isDirectory()) continue;
 
     for (const file of fs.readdirSync(tasksDir)) {
       if (!file.endsWith('.yaml')) continue;
@@ -45,6 +64,7 @@ function findAssignedTasks(): TaskFile[] {
       const task = loadTaskFile(filePath);
       if (task?.status === 'assigned') {
         task.project = project;
+        task.projectDir = projectDir;
         task.filePath = filePath;
         tasks.push(task);
       }
@@ -110,7 +130,10 @@ Pattern:
 function gitLogSummary(projectDir: string, n = 10): string {
   try {
     execSync('git rev-parse --git-dir', { cwd: projectDir, stdio: 'pipe' });
-    return execSync(`git log --oneline -${n}`, { cwd: projectDir, stdio: 'pipe' })
+    return execSync(`git log --oneline -${n}`, {
+      cwd: projectDir,
+      stdio: 'pipe',
+    })
       .toString()
       .trim();
   } catch {
@@ -137,9 +160,16 @@ function isGitRepo(dir: string): boolean {
  *
  * Returns a WorktreeInfo with path and branch, or null if not a git repo.
  */
-function createWorktree(projectDir: string, taskId: string, suffix: string): WorktreeInfo | null {
+function createWorktree(
+  projectDir: string,
+  taskId: string,
+  suffix: string,
+): WorktreeInfo | null {
   if (!isGitRepo(projectDir)) {
-    logger.warn({ projectDir, taskId }, 'Project has no git repo — skipping worktree, using project dir directly');
+    logger.warn(
+      { projectDir, taskId },
+      'Project has no git repo — skipping worktree, using project dir directly',
+    );
     return null;
   }
 
@@ -159,7 +189,10 @@ function createWorktree(projectDir: string, taskId: string, suffix: string): Wor
     logger.info({ taskId, worktreePath, branch }, 'Created git worktree');
     return { path: worktreePath, branch };
   } catch (err) {
-    logger.error({ taskId, worktreePath, err }, 'Failed to create worktree — falling back to project dir');
+    logger.error(
+      { taskId, worktreePath, err },
+      'Failed to create worktree — falling back to project dir',
+    );
     return null;
   }
 }
@@ -178,7 +211,10 @@ function removeWorktree(projectDir: string, worktree: WorktreeInfo): void {
     });
     logger.info({ worktreePath: worktree.path }, 'Removed git worktree');
   } catch (err) {
-    logger.warn({ worktreePath: worktree.path, err }, 'Failed to remove worktree');
+    logger.warn(
+      { worktreePath: worktree.path, err },
+      'Failed to remove worktree',
+    );
   }
 
   // Remove the branch — ignore errors (branch may not exist or was already cleaned up)
@@ -192,7 +228,6 @@ function removeWorktree(projectDir: string, worktree: WorktreeInfo): void {
     // Not an error
   }
 }
-
 
 /** Git commit in a project directory (best-effort, never throws) */
 function gitCommit(projectDir: string, message: string): void {
@@ -244,7 +279,7 @@ async function fetchProxyStats(): Promise<Record<string, unknown> | null> {
 
 /** Spawn a sub-agent for a task. Returns true on success, false on failure. */
 async function dispatchTask(task: TaskFile): Promise<boolean> {
-  const projectDir = path.join(PROJECTS_DIR, task.project);
+  const projectDir = task.projectDir;
   const suffix = crypto.randomBytes(4).toString('hex');
 
   const proxyStats = await fetchProxyStats();
@@ -300,21 +335,27 @@ async function dispatchTask(task: TaskFile): Promise<boolean> {
               if (block.type === 'text') {
                 const text = (block.text as string).trim();
                 for (const textLine of text.split('\n')) {
-                  if (textLine.trim()) process.stdout.write(`[${task.id}] [text] ${textLine}\n`);
+                  if (textLine.trim())
+                    process.stdout.write(`[${task.id}] [text] ${textLine}\n`);
                 }
               } else if (block.type === 'tool_use') {
                 const input = JSON.stringify(block.input).slice(0, 300);
-                process.stdout.write(`[${task.id}] [tool:${block.name}] ${input}\n`);
+                process.stdout.write(
+                  `[${task.id}] [tool:${block.name}] ${input}\n`,
+                );
               }
             }
           }
         } else if (type === 'tool_result') {
           // Skip tool results — they're verbose and already logged via tool_use
         } else if (type === 'result') {
-          const cost = typeof event.total_cost_usd === 'number'
-            ? `$${(event.total_cost_usd as number).toFixed(4)}`
-            : 'unknown';
-          process.stdout.write(`[${task.id}] [result] cost=${cost} is_error=${event.is_error}\n`);
+          const cost =
+            typeof event.total_cost_usd === 'number'
+              ? `$${(event.total_cost_usd as number).toFixed(4)}`
+              : 'unknown';
+          process.stdout.write(
+            `[${task.id}] [result] cost=${cost} is_error=${event.is_error}\n`,
+          );
         } else if (type === 'system') {
           const sub = (event as Record<string, unknown>).subtype as string;
           if (sub === 'init') {
@@ -344,10 +385,15 @@ async function dispatchTask(task: TaskFile): Promise<boolean> {
     });
 
     const timeout = setTimeout(() => {
-      logger.error({ task: task.id, containerName: spawnSpec.containerName }, 'Task timeout, stopping');
+      logger.error(
+        { task: task.id, containerName: spawnSpec.containerName },
+        'Task timeout, stopping',
+      );
       if (spawnSpec.containerName) {
         try {
-          execSync(`${CONTAINER_RUNTIME_BIN} stop ${spawnSpec.containerName}`, { timeout: 15000 });
+          execSync(`${CONTAINER_RUNTIME_BIN} stop ${spawnSpec.containerName}`, {
+            timeout: 15000,
+          });
         } catch {
           container.kill('SIGTERM');
         }
@@ -372,7 +418,12 @@ async function dispatchTask(task: TaskFile): Promise<boolean> {
         );
         const recentLog = gitLogSummary(projectDir);
         logger.info(
-          { task: task.id, project: task.project, worktree: worktree?.path, recentLog },
+          {
+            task: task.id,
+            project: task.project,
+            worktree: worktree?.path,
+            recentLog,
+          },
           'Task completed, moved to review. Worktree preserved for merge.',
         );
         // Note: worktree is NOT removed here — the reviewer/user merges the branch
@@ -387,7 +438,13 @@ async function dispatchTask(task: TaskFile): Promise<boolean> {
         );
         const recentLog = gitLogSummary(projectDir);
         logger.error(
-          { task: task.id, code, hasResult, stderr: stderr.slice(-500), recentLog },
+          {
+            task: task.id,
+            code,
+            hasResult,
+            stderr: stderr.slice(-500),
+            recentLog,
+          },
           'Task failed, returning to queue',
         );
         // Clean up the worktree on failure so stale branches don't accumulate
@@ -415,10 +472,16 @@ async function main(): Promise<void> {
   logger.info('Container runtime OK');
 
   // Start credential proxy — bind to 0.0.0.0 so sibling containers can reach it via port mapping
-  const credentialProxyPort = parseInt(process.env.CREDENTIAL_PROXY_PORT || '3001', 10);
+  const credentialProxyPort = parseInt(
+    process.env.CREDENTIAL_PROXY_PORT || '3001',
+    10,
+  );
   const proxyHost = process.env.CREDENTIAL_PROXY_HOST || '0.0.0.0';
   await startCredentialProxy(credentialProxyPort, proxyHost);
-  logger.info({ port: credentialProxyPort, host: proxyHost }, 'Credential proxy started');
+  logger.info(
+    { port: credentialProxyPort, host: proxyHost },
+    'Credential proxy started',
+  );
 
   logger.info(
     {

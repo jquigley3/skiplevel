@@ -33,7 +33,12 @@ import {
 import { detectAuthMode } from './credential-proxy.js';
 import { validateMount } from './mount-security.js';
 import { logger } from './logger.js';
-import { AgentSpec, SessionConfig, SpawnSpec, WorktreeInfo } from './session-spec.js';
+import {
+  AgentSpec,
+  SessionConfig,
+  SpawnSpec,
+  WorktreeInfo,
+} from './session-spec.js';
 import { TaskFile } from './task-loader.js';
 
 // Apple Container uses a different hostname to reach the host machine.
@@ -49,7 +54,7 @@ export function resolveSessionConfig(
   suffix: string,
 ): SessionConfig {
   const spec: AgentSpec = task.agent_spec ?? {};
-  const projectDir = path.join(PROJECTS_DIR, task.project);
+  const projectDir = task.projectDir;
   const workDir = worktree?.path ?? projectDir;
   const containerName = `harness-${task.id.toLowerCase()}-${suffix}`;
 
@@ -116,6 +121,7 @@ export function resolveSessionConfig(
     settings_file,
     claude_md_path,
     extra_mounts,
+    claude_binary: spec.claude_binary,
     env: { ...baseEnv, ...(spec.env ?? {}) },
   };
 }
@@ -137,10 +143,10 @@ export class SessionBuilder {
       case 'apple-container':
         return buildAppleContainerSpawnSpec(config, prompt);
       case 'local':
-        assertNativeHost(config.isolation);
+        if (!config.claude_binary) assertNativeHost(config.isolation);
         return buildLocalSpawnSpec(config, prompt);
       case 'worktree':
-        assertNativeHost(config.isolation);
+        if (!config.claude_binary) assertNativeHost(config.isolation);
         return buildLocalSpawnSpec(config, prompt); // identical mechanics; workDir is already the worktree
       default: {
         const _exhaustive: never = config.isolation;
@@ -158,12 +164,14 @@ function buildClaudeArgs(config: SessionConfig, prompt: string): string[] {
   const args: string[] = [
     '--print',
     '--verbose',
-    '--output-format', 'stream-json',
+    '--output-format',
+    'stream-json',
   ];
 
-  if (config.model)           args.push('--model', config.model);
-  if (config.effort)          args.push('--effort', config.effort);
-  if (config.max_turns != null) args.push('--max-turns', String(config.max_turns));
+  if (config.model) args.push('--model', config.model);
+  if (config.effort) args.push('--effort', config.effort);
+  if (config.max_turns != null)
+    args.push('--max-turns', String(config.max_turns));
 
   if (config.permission_mode === 'bypassPermissions') {
     args.push('--dangerously-skip-permissions');
@@ -173,20 +181,16 @@ function buildClaudeArgs(config: SessionConfig, prompt: string): string[] {
 
   if (config.max_budget_usd != null)
     args.push('--max-budget-usd', String(config.max_budget_usd));
-  if (config.system_prompt)
-    args.push('--system-prompt', config.system_prompt);
+  if (config.system_prompt) args.push('--system-prompt', config.system_prompt);
   if (config.append_system_prompt)
     args.push('--append-system-prompt', config.append_system_prompt);
   if (config.allowed_tools?.length)
     args.push('--allowedTools', config.allowed_tools.join(','));
   if (config.disallowed_tools?.length)
     args.push('--disallowedTools', config.disallowed_tools.join(','));
-  if (config.session_name)
-    args.push('--name', config.session_name);
-  if (config.no_session_persistence)
-    args.push('--no-session-persistence');
-  if (config.strict_mcp_config)
-    args.push('--strict-mcp-config');
+  if (config.session_name) args.push('--name', config.session_name);
+  if (config.no_session_persistence) args.push('--no-session-persistence');
+  if (config.strict_mcp_config) args.push('--strict-mcp-config');
 
   // Prompt is always last
   args.push(prompt);
@@ -197,13 +201,19 @@ function buildClaudeArgs(config: SessionConfig, prompt: string): string[] {
 // Strategy: docker
 // ---------------------------------------------------------------------------
 
-function buildDockerSpawnSpec(config: SessionConfig, prompt: string): SpawnSpec {
+function buildDockerSpawnSpec(
+  config: SessionConfig,
+  prompt: string,
+): SpawnSpec {
   const args: string[] = ['run', '--rm', '--name', config.containerName];
 
   if (HARNESS_NETWORK) args.push('--network', HARNESS_NETWORK);
 
   args.push('-e', `TZ=${config.env.TZ ?? TIMEZONE}`);
-  args.push('-e', `ANTHROPIC_BASE_URL=http://${CONTAINER_HOST_GATEWAY}:${CREDENTIAL_PROXY_PORT}`);
+  args.push(
+    '-e',
+    `ANTHROPIC_BASE_URL=http://${CONTAINER_HOST_GATEWAY}:${CREDENTIAL_PROXY_PORT}`,
+  );
   args.push(...hostGatewayArgs());
 
   const authMode = detectAuthMode();
@@ -229,7 +239,10 @@ function buildDockerSpawnSpec(config: SessionConfig, prompt: string): SpawnSpec 
 
   // Optional settings.json override
   if (config.settings_file) {
-    args.push('-v', `${config.settings_file}:/home/node/.claude/settings.json:ro`);
+    args.push(
+      '-v',
+      `${config.settings_file}:/home/node/.claude/settings.json:ro`,
+    );
   }
 
   // Optional CLAUDE.md override
@@ -248,8 +261,16 @@ function buildDockerSpawnSpec(config: SessionConfig, prompt: string): SpawnSpec 
   // Translate mcp_config_file from orchestrator path to container path for --mcp-config
   const claudeArgs = buildClaudeArgs(config, prompt);
   if (config.mcp_config_file) {
-    const containerPath = toContainerProjectPath(config.mcp_config_file, config.workDir);
-    claudeArgs.splice(claudeArgs.indexOf(prompt), 0, '--mcp-config', containerPath);
+    const containerPath = toContainerProjectPath(
+      config.mcp_config_file,
+      config.workDir,
+    );
+    claudeArgs.splice(
+      claudeArgs.indexOf(prompt),
+      0,
+      '--mcp-config',
+      containerPath,
+    );
   }
 
   args.push(...claudeArgs);
@@ -267,11 +288,17 @@ function buildDockerSpawnSpec(config: SessionConfig, prompt: string): SpawnSpec 
 // Strategy: apple-container
 // ---------------------------------------------------------------------------
 
-function buildAppleContainerSpawnSpec(config: SessionConfig, prompt: string): SpawnSpec {
+function buildAppleContainerSpawnSpec(
+  config: SessionConfig,
+  prompt: string,
+): SpawnSpec {
   const args: string[] = ['run', '--rm', '--name', config.containerName];
 
   args.push('-e', `TZ=${config.env.TZ ?? TIMEZONE}`);
-  args.push('-e', `ANTHROPIC_BASE_URL=http://${APPLE_CONTAINER_HOST_GATEWAY}:${CREDENTIAL_PROXY_PORT}`);
+  args.push(
+    '-e',
+    `ANTHROPIC_BASE_URL=http://${APPLE_CONTAINER_HOST_GATEWAY}:${CREDENTIAL_PROXY_PORT}`,
+  );
 
   const authMode = detectAuthMode();
   if (authMode === 'api-key') {
@@ -292,7 +319,10 @@ function buildAppleContainerSpawnSpec(config: SessionConfig, prompt: string): Sp
   args.push('-v', `${sessionDir}:/home/node/.claude`);
 
   if (config.settings_file) {
-    args.push('-v', `${config.settings_file}:/home/node/.claude/settings.json:ro`);
+    args.push(
+      '-v',
+      `${config.settings_file}:/home/node/.claude/settings.json:ro`,
+    );
   }
   if (config.claude_md_path) {
     args.push('-v', `${config.claude_md_path}:/workspace/project/CLAUDE.md:ro`);
@@ -305,8 +335,16 @@ function buildAppleContainerSpawnSpec(config: SessionConfig, prompt: string): Sp
 
   const claudeArgs = buildClaudeArgs(config, prompt);
   if (config.mcp_config_file) {
-    const containerPath = toContainerProjectPath(config.mcp_config_file, config.workDir);
-    claudeArgs.splice(claudeArgs.indexOf(prompt), 0, '--mcp-config', containerPath);
+    const containerPath = toContainerProjectPath(
+      config.mcp_config_file,
+      config.workDir,
+    );
+    claudeArgs.splice(
+      claudeArgs.indexOf(prompt),
+      0,
+      '--mcp-config',
+      containerPath,
+    );
   }
 
   args.push(...claudeArgs);
@@ -332,7 +370,12 @@ function buildLocalSpawnSpec(config: SessionConfig, prompt: string): SpawnSpec {
 
   // mcp_config_file is already on the host filesystem; pass directly
   if (config.mcp_config_file) {
-    claudeArgs.splice(claudeArgs.indexOf(prompt), 0, '--mcp-config', config.mcp_config_file);
+    claudeArgs.splice(
+      claudeArgs.indexOf(prompt),
+      0,
+      '--mcp-config',
+      config.mcp_config_file,
+    );
   }
 
   // For claude_md override: use --append-system-prompt if not already set,
@@ -342,7 +385,11 @@ function buildLocalSpawnSpec(config: SessionConfig, prompt: string): SpawnSpec {
     const targetClaudeMd = path.join(config.workDir, 'CLAUDE.md');
     if (config.claude_md_path !== targetClaudeMd) {
       logger.warn(
-        { taskId: config.taskId, claude_md: config.claude_md_path, workDir: config.workDir },
+        {
+          taskId: config.taskId,
+          claude_md: config.claude_md_path,
+          workDir: config.workDir,
+        },
         'agent_spec.claude_md override for local isolation: copying to workDir/CLAUDE.md',
       );
       fs.copyFileSync(config.claude_md_path, targetClaudeMd);
@@ -355,7 +402,7 @@ function buildLocalSpawnSpec(config: SessionConfig, prompt: string): SpawnSpec {
   };
 
   return {
-    command: ['claude', ...claudeArgs],
+    command: [config.claude_binary ?? 'claude', ...claudeArgs],
     env,
     workdir: config.workDir,
     timeout_ms: config.timeout_ms,
@@ -370,7 +417,10 @@ function buildLocalSpawnSpec(config: SessionConfig, prompt: string): SpawnSpec {
  * Translate an orchestrator-side path inside workDir to its container-side
  * equivalent. The container always mounts workDir at /workspace/project.
  */
-function toContainerProjectPath(orchestratorPath: string, workDir: string): string {
+function toContainerProjectPath(
+  orchestratorPath: string,
+  workDir: string,
+): string {
   const relative = path.relative(workDir, orchestratorPath);
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
     throw new Error(
@@ -400,10 +450,12 @@ function toHostPath(containerPath: string): string {
  * Returns the host path (for use in docker -v flags).
  */
 function ensureTaskSessionDir(config: SessionConfig): string {
-  // Data dir lives at <orchestrator cwd>/data/sessions/<taskId>-<suffix>/.claude
-  // This mirrors the group-session isolation pattern in container-runner.ts.
-  const dataDir = path.join(process.cwd(), 'data', 'sessions', `${config.taskId}-${config.suffix}`);
-  const claudeDir = path.join(dataDir, '.claude');
+  // Store the session dir inside the worktree so it lives on the host bind-mount.
+  // The orchestrator creates it via the container path (config.workDir), but
+  // returns the host path (config.hostWorkDir) for use in docker -v flags.
+  // Using the worktree avoids the /app/data path which is inside a named volume
+  // and therefore not accessible to sibling containers spawned by Docker Desktop.
+  const claudeDir = path.join(config.workDir, '.claude-session');
   fs.mkdirSync(claudeDir, { recursive: true });
 
   // Write a minimal settings.json that disables auto-memory for sub-agents.
@@ -411,11 +463,16 @@ function ensureTaskSessionDir(config: SessionConfig): string {
   if (!fs.existsSync(settingsPath)) {
     fs.writeFileSync(
       settingsPath,
-      JSON.stringify({ env: { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } }, null, 2) + '\n',
+      JSON.stringify(
+        { env: { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } },
+        null,
+        2,
+      ) + '\n',
     );
   }
 
-  return claudeDir;
+  // Return the host path — this is what goes into the docker -v flag.
+  return path.join(config.hostWorkDir, '.claude-session');
 }
 
 /**
@@ -425,16 +482,23 @@ function ensureTaskSessionDir(config: SessionConfig): string {
 function resolveExtraMounts(
   mounts: Array<{ host: string; container: string; readonly?: boolean }>,
 ): Array<{ host: string; container: string; readonly: boolean }> {
-  const result: Array<{ host: string; container: string; readonly: boolean }> = [];
+  const result: Array<{ host: string; container: string; readonly: boolean }> =
+    [];
 
   for (const m of mounts) {
     // Container path validation
     if (!m.container.startsWith('/workspace/')) {
-      logger.warn({ mount: m }, 'Extra mount rejected: container path must be under /workspace/');
+      logger.warn(
+        { mount: m },
+        'Extra mount rejected: container path must be under /workspace/',
+      );
       continue;
     }
     if (m.container.includes('..')) {
-      logger.warn({ mount: m }, 'Extra mount rejected: container path must not contain ".."');
+      logger.warn(
+        { mount: m },
+        'Extra mount rejected: container path must not contain ".."',
+      );
       continue;
     }
 
@@ -442,12 +506,19 @@ function resolveExtraMounts(
     // since validateMount validates relative paths, but we handle container
     // paths ourselves above)
     const validation = validateMount(
-      { hostPath: m.host, containerPath: 'placeholder', readonly: m.readonly ?? true },
+      {
+        hostPath: m.host,
+        containerPath: 'placeholder',
+        readonly: m.readonly ?? true,
+      },
       true, // treat agent_spec mounts as main-group level
     );
 
     if (!validation.allowed) {
-      logger.warn({ mount: m, reason: validation.reason }, 'Extra mount rejected by allowlist');
+      logger.warn(
+        { mount: m, reason: validation.reason },
+        'Extra mount rejected by allowlist',
+      );
       continue;
     }
 
@@ -471,7 +542,7 @@ function assertNativeHost(isolation: string): void {
   } catch {
     throw new Error(
       `isolation="${isolation}" requires claude on PATH, but it was not found. ` +
-      `This strategy only works when the orchestrator runs natively (not in Docker).`,
+        `This strategy only works when the orchestrator runs natively (not in Docker).`,
     );
   }
 }

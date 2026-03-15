@@ -1,5 +1,5 @@
 id: HARNESS-006
-title: "Reconcile tasks.md with tasks/*.yaml"
+title: 'Reconcile tasks.md with tasks/*.yaml'
 description: >
   The project currently has two task tracking systems: tasks.md (human-readable
   checklist) and tasks/*.yaml (machine-readable task files). Decide the single
@@ -14,7 +14,7 @@ status: in-progress
 priority: P1
 assignee: sub-agent
 parent: null
-phase: "Phase 1: Project & State Model"
+phase: 'Phase 1: Project & State Model'
 
 created: 2026-03-14T00:00:00Z
 updated: 2026-03-14T09:30:34.910Z

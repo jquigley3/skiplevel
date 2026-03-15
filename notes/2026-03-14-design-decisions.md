@@ -37,6 +37,7 @@ This structure exists "for free" — no sentinel markers or custom output protoc
 - `ipc/session-result.json` — summary: `{sessionId, result, totalCostUsd, durationMs, exitCode}`
 
 A receiving agent reads only what it needs:
+
 - `session-result.json` for the final answer
 - `transcript.jsonl` filtered by `type:"tool_use"` to see what mutations happened
 - Full `transcript.jsonl` for detailed context

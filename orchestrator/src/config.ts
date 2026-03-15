@@ -20,8 +20,7 @@ export const PKB_DIR = process.env.PKB_DIR || '/workspace/pkb';
 
 // Host paths — the orchestrator runs in Docker but spawns sibling containers
 // that mount host paths. These map container paths → host paths for mounts.
-export const HOST_PROJECTS_DIR =
-  process.env.HOST_PROJECTS_DIR || PROJECTS_DIR;
+export const HOST_PROJECTS_DIR = process.env.HOST_PROJECTS_DIR || PROJECTS_DIR;
 export const HOST_PKB_DIR = process.env.HOST_PKB_DIR || PKB_DIR;
 
 // Orchestrator state directories
@@ -52,10 +51,7 @@ export const CREDENTIAL_PROXY_PORT = parseInt(
   process.env.CREDENTIAL_PROXY_PORT || '3001',
   10,
 );
-export const IDLE_TIMEOUT = parseInt(
-  process.env.IDLE_TIMEOUT || '1800000',
-  10,
-); // 30min default
+export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '1800000', 10); // 30min default
 export const MAX_CONCURRENT_CONTAINERS = Math.max(
   1,
   parseInt(process.env.MAX_CONCURRENT_CONTAINERS || '3', 10) || 3,

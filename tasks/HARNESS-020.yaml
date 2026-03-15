@@ -1,0 +1,114 @@
+id: HARNESS-020
+title: 'Create /setup skill for new-user onboarding'
+description: >
+  Create a Claude Code skill that guides a new user through setting up
+  macro-claw for the first time and verifying the environment is ready
+  to run a task.
+
+  ## What is a Claude Code skill?
+  A Markdown file at `.claude/skills/<name>/SKILL.md` with YAML frontmatter.
+  Invoked by the user as `/setup` in a Claude Code session.
+  Can use `!`command`` syntax to inject real-time shell output before
+  Claude reasons, and `$ARGUMENTS` to accept flags like `--check-only`.
+
+  ## File to create
+  `.claude/skills/setup/SKILL.md`
+
+  ## Frontmatter requirements
+  ```yaml
+  ---
+  name: setup
+  description: >
+    Initialize macro-claw for first-time use. Checks prerequisites (Docker,
+    Node, credentials), installs dependencies, builds container images, and
+    verifies the orchestrator is ready to dispatch tasks. Use for initial
+    setup, environment verification, or diagnosing a broken install.
+  allowed-tools: Bash, Read, Write, Glob
+  ---
+  ```
+
+  ## Skill body — what it must do
+
+  ### 1. Inject live environment state (using !`...` syntax)
+  At the top of the skill body, inject current state so Claude sees it
+  before reasoning. Include at minimum:
+    - Docker: is it installed and running?
+    - Node: version present?
+    - `.env` files: do `orchestrator/.env` and `.env` exist?
+    - `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` set in orchestrator/.env?
+    - Container images built: does `agent-harness:latest` exist?
+    - Orchestrator container running?
+
+  Use shell one-liners that output a single clear status word (OK / MISSING /
+  NOT RUNNING). Do not output verbose command output — just the status token.
+
+  ### 2. Handle `--check-only` argument
+  If `$ARGUMENTS` contains `--check-only`, report the current state summary
+  and stop. Take no action. This is safe for CI or health checks.
+
+  ### 3. Fix what's missing (action steps)
+  If not `--check-only`, take action on each missing prerequisite:
+    a. If `orchestrator/.env` missing: copy `orchestrator/.env.example`
+       and tell the user they must fill in credentials before continuing.
+       Stop — do not proceed past a missing credentials file.
+    b. If `orchestrator/node_modules` missing: run `cd orchestrator && npm install`
+    c. If container images not built: run `docker compose build`
+    d. If orchestrator not running: run `docker compose up -d`
+
+  ### 4. Verify
+  After action steps, re-check that:
+    - Orchestrator container is running
+    - Proxy container is running
+    - A quick HTTP check to `http://localhost:8001` succeeds (proxy stats)
+
+  ### 5. Output a readiness summary
+  Use a clear format like:
+    ✓ Docker running
+    ✓ Node 22 found
+    ✓ orchestrator/.env exists
+    ✓ Credentials present
+    ✓ Images built
+    ✓ Orchestrator running
+    ✓ Proxy running
+
+    Ready. Dispatch your first task:
+      ./dev.sh dispatch SMOKE-001
+
+  If anything failed, show:
+    ✗ [thing] — [one-line reason + how to fix]
+
+  ## Important constraints
+  - The skill must work from the repo root (where the user runs Claude Code).
+  - All paths must be relative to repo root (e.g., `orchestrator/.env`).
+  - Do not hard-code user-specific paths.
+  - Do not write anything to git-tracked files except `orchestrator/.env`
+    (copy from .env.example — this is gitignored).
+  - Be idempotent: running `/setup` on an already-configured machine should
+    report all-green and exit cleanly without rebuilding anything.
+
+  ## Reference
+  Read `AGENT.md` for the developer inner loop and existing commands.
+  Read `docker-compose.yaml` for service names and port numbers.
+  Read `.env.example` (if it exists) for the credential var names.
+  If `.env.example` doesn't exist yet (HARNESS-019 may not be merged),
+  use `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` as the known
+  credential env var names.
+
+status: assigned
+priority: P1
+assignee: sub-agent
+parent: null
+phase: 'Phase 1: New User Flow'
+
+created: 2026-03-14T23:00:00Z
+updated: 2026-03-14T23:00:00Z
+
+deliverables:
+  - .claude/skills/setup/SKILL.md
+
+agent_spec:
+  isolation: docker
+  model: claude-sonnet-4-6
+  effort: medium
+  max_turns: 30
+  permission_mode: bypassPermissions

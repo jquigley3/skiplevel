@@ -16,12 +16,12 @@ resource-to-project allocation.
 `resources.yaml` is organized into four sections: `machines`, `accounts`,
 `token_windows`, and `allocation`. Each represents a distinct concern:
 
-| Section | Question it answers |
-|---|---|
-| `machines` | Where can sub-agents run? |
-| `accounts` | What credentials are available? |
-| `token_windows` | How much of the budget is left right now? |
-| `allocation` | Which project uses which machine + account? |
+| Section         | Question it answers                         |
+| --------------- | ------------------------------------------- |
+| `machines`      | Where can sub-agents run?                   |
+| `accounts`      | What credentials are available?             |
+| `token_windows` | How much of the budget is left right now?   |
+| `allocation`    | Which project uses which machine + account? |
 
 Keeping these separate avoids conflating static configuration (machines,
 accounts) with dynamic runtime state (token windows, current usage). The
@@ -99,6 +99,7 @@ field gets populated automatically.
 An account has a static contract (plan, refresh schedule). A token window
 is a dynamic snapshot: "right now, this account has ~X tokens left until
 midnight." Separating them:
+
 - Makes it clear which fields the harness writes at runtime vs. which are
   set once by the operator.
 - Supports future scenarios: one account could have multiple windows (hourly
@@ -149,6 +150,7 @@ the scheduler must partition the token budget across concurrent agents
 
 **`per_project` overrides:**
 An empty list for now, but the schema supports future cases:
+
 - A high-priority project that must always run on a specific machine
 - A project with its own API key (separate token budget)
 - A project limited to 1 agent even when the default allows more
@@ -200,12 +202,12 @@ user might later want to list all sessions across all projects in one view.
 
 **`state` field — four values:**
 
-| State | Meaning |
-|---|---|
-| `interactive` | User is actively present in this session |
-| `autonomous` | Sub-agent tasks are running; user can switch away |
-| `blocked` | Tasks are done or failed; needs user attention |
-| `idle` | No active tasks; session exists but nothing pending |
+| State         | Meaning                                             |
+| ------------- | --------------------------------------------------- |
+| `interactive` | User is actively present in this session            |
+| `autonomous`  | Sub-agent tasks are running; user can switch away   |
+| `blocked`     | Tasks are done or failed; needs user attention      |
+| `idle`        | No active tasks; session exists but nothing pending |
 
 These four states encode the full lifecycle described in `session-flow.md`. The
 scheduler and notification system use `blocked` sessions as the primary signal

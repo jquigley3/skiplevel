@@ -6,29 +6,32 @@
 // Session: atomic unit of execution. Everything else exists to schedule and manage sessions.
 interface Session {
   // Identity
-  id?: string                    // persistent mode only; Claude Code UUID; owned by Claude Code
-  mode: 'ephemeral'              // claude -p "..."; single run; no resume; output only
-       |'persistent'             // claude [--resume id]; UUID; resumable; retains history
+  id?: string; // persistent mode only; Claude Code UUID; owned by Claude Code
+  mode:
+    | 'ephemeral' // claude -p "..."; single run; no resume; output only
+    | 'persistent'; // claude [--resume id]; UUID; resumable; retains history
 
   // Environment (how the session is provisioned)
   env: {
-    type: 'local'                // claude process on host
-        | 'docker'               // claude inside Docker container
-        | 'worktree'             // git worktree isolation + local claude
-        | 'apple-container'      // Apple Container VM (macOS)
-    working_dir: string          // claude's working directory; scopes file access
-    context_files: string[]      // CLAUDE.md files loaded; defines agent behavior + tools
-    credentials: string          // how ANTHROPIC credentials are provided
-  }
+    type:
+      | 'local' // claude process on host
+      | 'docker' // claude inside Docker container
+      | 'worktree' // git worktree isolation + local claude
+      | 'apple-container'; // Apple Container VM (macOS)
+    working_dir: string; // claude's working directory; scopes file access
+    context_files: string[]; // CLAUDE.md files loaded; defines agent behavior + tools
+    credentials: string; // how ANTHROPIC credentials are provided
+  };
 
   // Lifecycle
-  state: 'running'
-       | 'stopped:output'        // completed; launcher reads output → decides next action
-       | 'stopped:needs-input'   // paused; launcher must provide input to continue
+  state:
+    | 'running'
+    | 'stopped:output' // completed; launcher reads output → decides next action
+    | 'stopped:needs-input'; // paused; launcher must provide input to continue
 }
 
 // Launcher: whoever starts or resumes a session. Observes session state and acts.
-type Launcher = 'human' | 'orchestrator' | 'parent-session'
+type Launcher = 'human' | 'orchestrator' | 'parent-session';
 
 // Launcher decision loop (same regardless of launcher type):
 //   session stops →
@@ -38,18 +41,19 @@ type Launcher = 'human' | 'orchestrator' | 'parent-session'
 
 // Task: unit of work; describes what one session should accomplish.
 interface Task {
-  id: string                     // PROJECT-NNN
-  description: string            // self-contained; the only context the session needs
-  status: 'backlog'              // defined, not scheduled
-        | 'queued'               // scheduled; orchestrator will dispatch
-        | 'in-progress'          // session running
-        | 'review'               // session stopped:output; awaiting acceptance
-        | 'done'                 // accepted
-  priority: 'P0'|'P1'|'P2'|'P3'
-  agent_spec?: Partial<Session['env']>  // requested environment; orchestrator may override
-  deliverables: string[]         // paths expected on completion; presence = done signal
-  parent?: string                // task ID; enables task trees
-  result?: string                // path to ipc/result.md written by session
+  id: string; // PROJECT-NNN
+  description: string; // self-contained; the only context the session needs
+  status:
+    | 'backlog' // defined, not scheduled
+    | 'queued' // scheduled; orchestrator will dispatch
+    | 'in-progress' // session running
+    | 'review' // session stopped:output; awaiting acceptance
+    | 'done'; // accepted
+  priority: 'P0' | 'P1' | 'P2' | 'P3';
+  agent_spec?: Partial<Session['env']>; // requested environment; orchestrator may override
+  deliverables: string[]; // paths expected on completion; presence = done signal
+  parent?: string; // task ID; enables task trees
+  result?: string; // path to ipc/result.md written by session
 }
 
 // Task state machine:
@@ -59,12 +63,12 @@ interface Task {
 
 // Project: mutable goal + task collection.
 interface Project {
-  id: string
-  goal: string                   // intentionally mutable; evolves as user develops project
-  status: 'planning'|'active'|'paused'|'done'
-  priority: 'P0'|'P1'|'P2'|'P3'
-  tasks: Task[]                  // files: tasks/PROJECT-NNN.yaml
-  session_id?: string            // linked persistent planning session (the "project session")
+  id: string;
+  goal: string; // intentionally mutable; evolves as user develops project
+  status: 'planning' | 'active' | 'paused' | 'done';
+  priority: 'P0' | 'P1' | 'P2' | 'P3';
+  tasks: Task[]; // files: tasks/PROJECT-NNN.yaml
+  session_id?: string; // linked persistent planning session (the "project session")
 }
 
 // Orchestrator: persistent process (Node.js daemon). Not AI; pure scheduling.
@@ -78,10 +82,10 @@ interface Project {
 
 // Resource constraints
 interface TokenWindow {
-  account: string
-  remaining: number | null       // null = unknown; proceed optimistically; CLI errors if exhausted
-  resets_at: string | null       // ISO 8601
-  min_task_tokens: number        // don't dispatch if remaining < this
+  account: string;
+  remaining: number | null; // null = unknown; proceed optimistically; CLI errors if exhausted
+  resets_at: string | null; // ISO 8601
+  min_task_tokens: number; // don't dispatch if remaining < this
 }
 ```
 

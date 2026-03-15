@@ -1,5 +1,5 @@
 id: HARNESS-005
-title: "Add sessions section to resources.yaml"
+title: 'Add sessions section to resources.yaml'
 description: >
   Extend resources.yaml with a sessions section for tracking Claude Code CLI
   sessions as resources. Read notes/2026-03-14-session-flow.md for the data
@@ -14,7 +14,7 @@ status: in-progress
 priority: P1
 assignee: sub-agent
 parent: null
-phase: "Phase 1.6: Session Management"
+phase: 'Phase 1.6: Session Management'
 
 created: 2026-03-14T00:00:00Z
 updated: 2026-03-14T04:25:20.038Z

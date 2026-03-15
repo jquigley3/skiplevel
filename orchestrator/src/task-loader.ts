@@ -19,8 +19,9 @@ export interface TaskFile {
   assignee: string | null;
   parent: string | null;
   deliverables: string[];
-  project: string;   // derived from directory path by findAssignedTasks()
-  filePath: string;  // absolute path to the YAML file
+  project: string; // derived from directory path by findAssignedTasks()
+  projectDir: string; // absolute path to the project root (may differ from PROJECTS_DIR/project for layout B)
+  filePath: string; // absolute path to the YAML file
   agent_spec?: AgentSpec;
 }
 
@@ -49,7 +50,10 @@ export function loadTaskFile(filePath: string): TaskFile | null {
   }
 
   if (!parsed?.id || !parsed?.status) {
-    logger.warn({ file: filePath }, 'Task file missing required fields (id, status)');
+    logger.warn(
+      { file: filePath },
+      'Task file missing required fields (id, status)',
+    );
     return null;
   }
 
@@ -64,8 +68,9 @@ export function loadTaskFile(filePath: string): TaskFile | null {
     deliverables: Array.isArray(parsed.deliverables)
       ? (parsed.deliverables as unknown[]).map(String)
       : [],
-    project: '',   // filled in by caller
-    filePath: '',  // filled in by caller
+    project: '', // filled in by caller
+    projectDir: '', // filled in by caller
+    filePath: '', // filled in by caller
     agent_spec: parsed.agent_spec as AgentSpec | undefined,
   };
 }
@@ -81,7 +86,10 @@ export function updateTaskStatus(
 ): void {
   let content = fs.readFileSync(filePath, 'utf-8');
   content = content.replace(/^status:\s*.+$/m, `status: ${newStatus}`);
-  content = content.replace(/^updated:\s*.+$/m, `updated: ${new Date().toISOString()}`);
+  content = content.replace(
+    /^updated:\s*.+$/m,
+    `updated: ${new Date().toISOString()}`,
+  );
   if (assignee !== undefined) {
     content = content.replace(/^assignee:\s*.+$/m, `assignee: ${assignee}`);
   }

@@ -12,14 +12,14 @@
 # ---------------------------------------------------------------------------
 machines:
   - id: mac-workstation
-    name: "macOS Workstation"
-    type: workstation          # workstation | server | vm | ci-runner
+    name: 'macOS Workstation'
+    type: workstation # workstation | server | vm | ci-runner
     os: macOS
-    status: available          # available | busy | offline | reserved
+    status: available # available | busy | offline | reserved
     capabilities:
-      - docker                 # can launch Docker containers
-      - sandbox-exec           # Apple sandbox-exec available (macOS only)
-      - claude-cli             # Claude Code CLI installed natively
+      - docker # can launch Docker containers
+      - sandbox-exec # Apple sandbox-exec available (macOS only)
+      - claude-cli # Claude Code CLI installed natively
     notes: >
       Primary development machine. Docker Desktop installed.
       sandbox-exec available for lighter-weight isolation.
@@ -32,23 +32,23 @@ machines:
 # ---------------------------------------------------------------------------
 accounts:
   - id: claude-personal
-    name: "Claude Personal (OAuth)"
-    type: oauth                # oauth | api-key
+    name: 'Claude Personal (OAuth)'
+    type: oauth # oauth | api-key
     provider: anthropic
-    machine: mac-workstation   # which machine holds this credential
-    credential_location: "macOS keychain"
+    machine: mac-workstation # which machine holds this credential
+    credential_location: 'macOS keychain'
     notes: >
       Primary Claude Code CLI OAuth account. Credential is extracted from the
       macOS keychain at launch time and passed to sub-agent containers via
       the CLAUDE_ACCESS_TOKEN environment variable. Sub-agents must not
       persist or leak this token.
     token_budget:
-      refresh_interval: daily         # daily | hourly | per-request | none
-      refresh_schedule: "~midnight Pacific"
-      plan: pro                        # free | pro | max | api — affects limits
-      usage_limit: null                # null = plan limit unknown; integer = tokens/day if known
-      usage_estimate: null             # populated at runtime by harness query
-      last_refresh: null               # ISO timestamp; populated at runtime
+      refresh_interval: daily # daily | hourly | per-request | none
+      refresh_schedule: '~midnight Pacific'
+      plan: pro # free | pro | max | api — affects limits
+      usage_limit: null # null = plan limit unknown; integer = tokens/day if known
+      usage_estimate: null # populated at runtime by harness query
+      last_refresh: null # ISO timestamp; populated at runtime
       notes: >
         Pro plan token limits are not exposed via API as of 2026-03.
         Usage estimate populated by parsing `claude` CLI output or
@@ -64,15 +64,15 @@ accounts:
 token_windows:
   - id: claude-personal-daily
     account: claude-personal
-    window_type: daily         # daily | hourly | rolling-30d
+    window_type: daily # daily | hourly | rolling-30d
     description: >
       Daily token budget for the claude-personal account. Resets ~midnight
       Pacific. The harness must not schedule a new sub-agent if the estimated
       remaining tokens are below the task's minimum token requirement.
-    current_usage_estimate: null    # tokens used so far this window; populated at runtime
-    tokens_remaining: null          # estimated tokens left; populated at runtime
-    next_refresh: null              # ISO timestamp of next budget reset; populated at runtime
-    min_task_tokens: 10000          # minimum tokens required to attempt a new task
+    current_usage_estimate: null # tokens used so far this window; populated at runtime
+    tokens_remaining: null # estimated tokens left; populated at runtime
+    next_refresh: null # ISO timestamp of next budget reset; populated at runtime
+    min_task_tokens: 10000 # minimum tokens required to attempt a new task
     notes: >
       Token usage is estimated, not exact. The harness should apply a safety
       margin (e.g., 20%) to avoid hitting the limit mid-task. If tokens_remaining
@@ -89,7 +89,7 @@ allocation:
   default:
     machine: mac-workstation
     account: claude-personal
-    max_concurrent_agents: 1    # MVP: sequential only; increase when parallel is implemented
+    max_concurrent_agents: 1 # MVP: sequential only; increase when parallel is implemented
     notes: >
       Single-machine, single-account setup. All projects share the same
       resource pool for now. When multiple accounts or machines are added,
@@ -111,29 +111,29 @@ allocation:
 # orchestrator can see which tasks are associated with which session.
 # ---------------------------------------------------------------------------
 sessions:
-  - id: null                           # Claude Code session UUID (set at runtime)
-    name: "top"
-    project: null                      # no specific project — cross-project planning
-    directory: /workspace/project      # working directory for the session
-    state: interactive                 # interactive | autonomous | blocked | idle
+  - id: null # Claude Code session UUID (set at runtime)
+    name: 'top'
+    project: null # no specific project — cross-project planning
+    directory: /workspace/project # working directory for the session
+    state: interactive # interactive | autonomous | blocked | idle
     active_tasks: []
     blocked_reason: null
-    last_interaction: null             # ISO timestamp; populated at runtime
+    last_interaction: null # ISO timestamp; populated at runtime
     notes: >
       Top-level session. Entry point for the user. Used for cross-project
       planning, prioritization, and kicking off project sessions. Long-lived;
       rarely "done." Maps to the CEO's desk in the harness model.
 
-  - id: null                           # Claude Code session UUID (set at runtime)
-    name: "agent-harness"
+  - id: null # Claude Code session UUID (set at runtime)
+    name: 'agent-harness'
     project: agent-harness
     directory: /workspace/project
-    state: autonomous                  # dispatched tasks; user can switch away
+    state: autonomous # dispatched tasks; user can switch away
     active_tasks:
       - HARNESS-004
       - HARNESS-005
     blocked_reason: null
-    last_interaction: null             # ISO timestamp; populated at runtime
+    last_interaction: null # ISO timestamp; populated at runtime
     notes: >
       Example project session scoped to the agent-harness project. State is
       autonomous while sub-agent tasks are running. Transitions to blocked

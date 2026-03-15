@@ -1,5 +1,5 @@
 id: HARNESS-015
-title: "Write AGENT.md for developers"
+title: 'Write AGENT.md for developers'
 description: >
   Write /workspace/project/AGENT.md — a developer onboarding doc that lets a
   new developer (or sub-agent) iterate on the harness stack without manual
@@ -43,7 +43,7 @@ status: done
 priority: P1
 assignee: sub-agent
 parent: null
-phase: "Meta: Developer Experience"
+phase: 'Meta: Developer Experience'
 
 created: 2026-03-14T21:15:00Z
 updated: 2026-03-14T09:39:40.030Z

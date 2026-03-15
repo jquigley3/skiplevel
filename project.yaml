@@ -1,7 +1,7 @@
 name: agent-harness
-status: active  # planning | active | paused | done
-priority: P0    # P0 (critical) | P1 (high) | P2 (medium) | P3 (low)
-scope_estimate: "use all tokens in next 15 hours"
+status: active # planning | active | paused | done
+priority: P0 # P0 (critical) | P1 (high) | P2 (medium) | P3 (low)
+scope_estimate: 'use all tokens in next 15 hours'
 description: >
   Build a harness for managing multiple Claude Code CLI instances, modeled on an
   engineering organization. User (CEO) sets goals; agent (Head of Engineering)

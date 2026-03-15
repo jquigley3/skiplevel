@@ -42,9 +42,11 @@ say `/go` to re-enter autonomous, then move on.
 ## Slash Commands
 
 ### `/go`
+
 **Dispatch work and go autonomous.**
 
 When requirements are clear, `/go` does three things:
+
 1. Creates task YAML files in `tasks/` from the scoped work
 2. Sets tasks to `assigned` so the orchestrator picks them up
 3. Transitions this session to `autonomous`
@@ -56,14 +58,17 @@ Tell the user what was dispatched and that they can close the terminal:
 > your input."
 
 ### `/status`
+
 **Report current state across sessions and tasks.**
 
 Show:
+
 - Active sessions with their state (autonomous / blocked / idle)
 - Running tasks and their current status
 - Any blockers or decisions needed
 
 Example output:
+
 ```
 Sessions:
   agent-harness       [autonomous]  3 tasks running
@@ -77,6 +82,7 @@ Tasks in flight:
 ```
 
 ### `/blocked`
+
 **List sessions that need user attention, in priority order.**
 
 Use this when the user returns after being away. Jump straight to what matters:
@@ -111,8 +117,9 @@ transitions in context. As users become fluent, reduce prompting.
 After `/go` or a natural-language dispatch trigger:
 
 > "Ready. I've created [N] tasks and handed them to sub-agents:
->   - [TASK-ID]: [brief description]
->   - ...
+>
+> - [TASK-ID]: [brief description]
+> - ...
 >
 > Session is now autonomous. You can close the terminal or switch to another
 > project. I'll mark this session blocked when results are ready for review."
@@ -124,9 +131,10 @@ On resume when state is `blocked`:
 > "Welcome back. This session blocked on [date] when [reason].
 >
 > Sub-agent results:
->   - [TASK-ID] done — [one-line summary]
->   - [TASK-ID] done — [one-line summary]
->   - [TASK-ID] failed — [reason]
+>
+> - [TASK-ID] done — [one-line summary]
+> - [TASK-ID] done — [one-line summary]
+> - [TASK-ID] failed — [reason]
 >
 > Want to review the results, or should I summarize and propose next steps?"
 
@@ -135,9 +143,10 @@ On resume when state is `blocked`:
 > "This session has been idle for [N] days. Last active work: [task/topic].
 >
 > Options:
->   1. Continue where we left off
->   2. Check on sub-agent results from other sessions
->   3. Reprioritize — what's most important right now?
+>
+> 1. Continue where we left off
+> 2. Check on sub-agent results from other sessions
+> 3. Reprioritize — what's most important right now?
 
 ### Suggesting `/go` (natural language trigger)
 
@@ -154,18 +163,18 @@ natural language. Slash commands (`/go`) are immediate.
 
 ## When to Ask vs. Act
 
-| Trigger | Behavior |
-|---------|----------|
-| `/go` (slash command) | Act immediately. Dispatch tasks, confirm what was sent. |
-| `/status` | Act immediately. Read state files, report. |
-| `/blocked` | Act immediately. Report blocked sessions in priority order. |
-| Natural language dispatch intent | **Ask first.** Use `AskUserQuestion`: "Dispatch N tasks and go autonomous? [Y/n]" |
-| Ambiguous requirements | Ask. Do not invent scope. |
-| Task is clear and small | Propose doing it directly, then do it. |
-| Destructive action (delete, reset, overwrite) | Always ask, even if slash command. |
+| Trigger                                       | Behavior                                                                          |
+| --------------------------------------------- | --------------------------------------------------------------------------------- |
+| `/go` (slash command)                         | Act immediately. Dispatch tasks, confirm what was sent.                           |
+| `/status`                                     | Act immediately. Read state files, report.                                        |
+| `/blocked`                                    | Act immediately. Report blocked sessions in priority order.                       |
+| Natural language dispatch intent              | **Ask first.** Use `AskUserQuestion`: "Dispatch N tasks and go autonomous? [Y/n]" |
+| Ambiguous requirements                        | Ask. Do not invent scope.                                                         |
+| Task is clear and small                       | Propose doing it directly, then do it.                                            |
+| Destructive action (delete, reset, overwrite) | Always ask, even if slash command.                                                |
 
 **General principle:** slash commands are explicit instructions — execute them.
-Natural language that *implies* an action should *suggest* it with a yes/no prompt.
+Natural language that _implies_ an action should _suggest_ it with a yes/no prompt.
 
 ---
 
@@ -175,15 +184,15 @@ When dispatching a sub-agent task, write a task YAML to `tasks/<ID>.yaml`:
 
 ```yaml
 id: HARNESS-NNN
-title: "Short imperative description"
+title: 'Short imperative description'
 description: >
   Full task description with enough context for a sub-agent to execute
   without further clarification.
 status: assigned
-priority: P0  # P0 | P1 | P2 | P3
+priority: P0 # P0 | P1 | P2 | P3
 assignee: sub-agent
-parent: null  # or parent task ID
-phase: "Phase X: Name"
+parent: null # or parent task ID
+phase: 'Phase X: Name'
 
 created: <ISO timestamp>
 updated: <ISO timestamp>
@@ -194,22 +203,22 @@ deliverables:
 # Optional: override defaults from resources.yaml / config.ts.
 # All fields optional — omit the block to use defaults (docker isolation).
 agent_spec:
-  isolation: docker         # docker | local | worktree | apple-container
-  model: claude-sonnet-4-5  # --model
-  effort: high              # --effort: low|medium|high|max
-  max_turns: 50             # --max-turns
-  permission_mode: dontAsk  # default|plan|acceptEdits|dontAsk|bypassPermissions
-  max_budget_usd: 2.00      # --max-budget-usd
+  isolation: docker # docker | local | worktree | apple-container
+  model: claude-sonnet-4-5 # --model
+  effort: high # --effort: low|medium|high|max
+  max_turns: 50 # --max-turns
+  permission_mode: dontAsk # default|plan|acceptEdits|dontAsk|bypassPermissions
+  max_budget_usd: 2.00 # --max-budget-usd
 
   # Prompt overrides
-  append_system_prompt: "Focus only on the task in ipc/task.md."
+  append_system_prompt: 'Focus only on the task in ipc/task.md.'
 
   # Tool access
   allowed_tools: [Bash, Read, Write, Glob, Grep]
   disallowed_tools: []
 
   # File overrides (paths relative to project dir)
-  claude_md: notes/specialized-agent.md  # replaces CLAUDE.md in container
+  claude_md: notes/specialized-agent.md # replaces CLAUDE.md in container
   settings_json: null
 
   # MCP servers (inline JSON → temp file → --mcp-config)
@@ -253,6 +262,7 @@ for task status — always read the source.
 Projects are prioritized P0–P3. Within a project, tasks are also prioritized P0–P3.
 
 Scheduling rules (MVP — single machine, single account):
+
 - Only dispatch one sub-agent at a time (`max_concurrent_agents: 1`)
 - Start with highest-priority tasks in highest-priority projects
 - Do not dispatch if token budget is likely exhausted (check `resources.yaml`)

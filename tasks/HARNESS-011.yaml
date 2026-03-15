@@ -1,5 +1,5 @@
 id: HARNESS-011
-title: "Proxy smoke test: verify ANTHROPIC_BASE_URL and write env report"
+title: 'Proxy smoke test: verify ANTHROPIC_BASE_URL and write env report'
 description: >
   This is a diagnostic task to verify the rate-limiting proxy integration.
 
@@ -24,7 +24,7 @@ status: review
 priority: P1
 assignee: sub-agent
 parent: null
-phase: "Phase 1: Infrastructure"
+phase: 'Phase 1: Infrastructure'
 
 created: 2026-03-14T13:30:00Z
 updated: 2026-03-14T07:57:07.053Z

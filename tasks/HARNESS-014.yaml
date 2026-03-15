@@ -1,5 +1,5 @@
 id: HARNESS-014
-title: "Proxy smoke test #4: verify rate limit headers are populated"
+title: 'Proxy smoke test #4: verify rate limit headers are populated'
 description: >
   Smoke test after proxy rate limiting upgrade. Verify that the new
   anthropic-ratelimit-* header parsing is working.
@@ -20,7 +20,7 @@ status: review
 priority: P0
 assignee: sub-agent
 parent: null
-phase: "Phase 1: Infrastructure"
+phase: 'Phase 1: Infrastructure'
 
 created: 2026-03-14T20:00:00Z
 updated: 2026-03-14T08:48:02.297Z

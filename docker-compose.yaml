@@ -1,5 +1,7 @@
 # Agent Harness — Orchestrator + Sub-Agent Infrastructure
 #
+# Configuration: copy .env.example → .env and set HOST_PROJECTS_DIR + credentials.
+#
 # Usage:
 #   docker compose up -d          # Start orchestrator
 #   docker compose logs -f        # Watch logs
@@ -21,9 +23,9 @@ services:
           - proxy
     ports:
       # Proxy — exposed locally for debugging (curl/mitmweb on localhost:8000)
-      - "8000:8000"
+      - '8000:8000'
       # Stats endpoint — token usage, rate limit state, queue depth
-      - "8001:8001"
+      - '8001:8001'
 
   orchestrator:
     build: ./orchestrator
@@ -37,9 +39,9 @@ services:
       # Docker socket — orchestrator spawns sibling containers
       - /var/run/docker.sock:/var/run/docker.sock
       # Projects — orchestrator reads task state, sub-agents work here
-      - /Users/josh/claude/pkb/projects:/workspace/projects
-      # PKB — read-only reference for sub-agents
-      - /Users/josh/claude/pkb:/workspace/pkb:ro
+      - ${HOST_PROJECTS_DIR}:/workspace/projects
+      # PKB — read-only reference for sub-agents (optional; set HOST_PKB_DIR or leave unset)
+      - ${HOST_PKB_DIR:-/dev/null}:/workspace/pkb:ro
       # Orchestrator persistent state
       - harness-data:/app/data
       # .env mounted as a live file so the orchestrator can re-read a fresh
@@ -47,15 +49,15 @@ services:
       - ./orchestrator/.env:/app/.env:ro
     ports:
       # Credential proxy — sub-agent containers reach it via host.docker.internal:3001
-      - "3001:3001"
+      - '3001:3001'
     env_file:
       - ./orchestrator/.env
     environment:
       - PROJECTS_DIR=/workspace/projects
       - PKB_DIR=/workspace/pkb
       # Host paths — orchestrator passes these to Docker for sibling container mounts
-      - HOST_PROJECTS_DIR=/Users/josh/claude/pkb/projects
-      - HOST_PKB_DIR=/Users/josh/claude/pkb
+      - HOST_PROJECTS_DIR=${HOST_PROJECTS_DIR}
+      - HOST_PKB_DIR=${HOST_PKB_DIR:-}
       - CONTAINER_IMAGE=agent-harness:latest
       - LOG_LEVEL=info
       # Bind proxy to 0.0.0.0 so Docker port mapping works

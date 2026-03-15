@@ -1,5 +1,5 @@
 id: HARNESS-012
-title: "Proxy smoke test #2: verify proxy:8000 and token tracking"
+title: 'Proxy smoke test #2: verify proxy:8000 and token tracking'
 description: >
   Re-run of HARNESS-011 after proxy fixes. Verify the updated configuration.
 
@@ -18,7 +18,7 @@ status: review
 priority: P0
 assignee: sub-agent
 parent: null
-phase: "Phase 1: Infrastructure"
+phase: 'Phase 1: Infrastructure'
 
 created: 2026-03-14T14:00:00Z
 updated: 2026-03-14T07:59:16.344Z

@@ -1,9 +1,11 @@
 node_modules/
 dist/
 .next/
+.env
 orchestrator/.env
 orchestrator/node_modules/
 orchestrator/dist/
 container/node_modules/
 ipc/
+test/tmp/
 *.log

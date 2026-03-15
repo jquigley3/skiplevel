@@ -1,0 +1,67 @@
+id: HARNESS-021
+title: 'Create fake-agent script for credential-free testing'
+description: >
+  Create a minimal fake Claude CLI binary used by the integration test
+  (HARNESS-022) and local development. It simulates a sub-agent completing
+  a task without making any API calls.
+
+  ## What it does
+  The fake agent:
+    1. Reads `ipc/task.md` from the current working directory (if it exists)
+    2. Sleeps 500ms to simulate a short task
+    3. Writes a canned `ipc/result.md`:
+         # Result
+         Fake agent completed successfully.
+         Task description was: <first line of ipc/task.md, or "unknown">
+    4. Exits with code 0
+
+  ## Files to create
+
+  ### `scripts/fake-agent.sh`
+  A bash script. Must:
+    - Be executable (`chmod +x` — set mode 0755 in the file itself, or note
+      the test runner must chmod it before use)
+    - Accept and ignore all arguments (the orchestrator passes Claude CLI
+      flags like `--print`, `--output-format stream-json`, etc.)
+    - Create `ipc/` directory if it doesn't exist
+    - Write `ipc/result.md` as described above
+    - Print one line to stdout in stream-json format so the orchestrator's
+      stream parser doesn't error:
+        {"type":"result","subtype":"success","result":"Fake agent done.","session_id":"fake-000","is_error":false}
+    - Exit 0
+
+  ### `scripts/README.md`
+  One paragraph explaining what `fake-agent.sh` is and when to use it.
+
+  ## Acceptance criteria
+  Running the following from repo root should succeed and produce ipc/result.md:
+    mkdir -p /tmp/fake-test/ipc
+    cd /tmp/fake-test
+    echo "# Task\nWrite result.md" > ipc/task.md
+    bash <repo-root>/scripts/fake-agent.sh --print --output-format stream-json
+    cat ipc/result.md  # should show "Fake agent completed successfully."
+
+  ## What NOT to do
+  - Do not install any npm packages.
+  - Do not write a Node.js script — keep it as a plain bash script.
+  - Do not read from stdin or require interactive input.
+
+status: assigned
+priority: P1
+assignee: sub-agent
+parent: null
+phase: 'Phase 1: New User Flow'
+
+created: 2026-03-14T23:00:00Z
+updated: 2026-03-14T23:00:00Z
+
+deliverables:
+  - scripts/fake-agent.sh
+  - scripts/README.md
+
+agent_spec:
+  isolation: docker
+  model: claude-sonnet-4-6
+  effort: low
+  max_turns: 20
+  permission_mode: bypassPermissions

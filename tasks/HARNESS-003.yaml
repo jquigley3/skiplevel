@@ -1,5 +1,5 @@
 id: HARNESS-003
-title: "Document how to launch a sandboxed session"
+title: 'Document how to launch a sandboxed session'
 description: >
   Write a runbook or guide explaining how to launch a sandboxed Claude Code CLI
   session for a sub-agent. Cover: container image build, environment variable
@@ -9,7 +9,7 @@ status: in-progress
 priority: P1
 assignee: sub-agent
 parent: null
-phase: "Phase 0: Container Sandbox Setup"
+phase: 'Phase 0: Container Sandbox Setup'
 
 created: 2026-03-14T00:00:00Z
 updated: 2026-03-14T04:25:20.036Z
