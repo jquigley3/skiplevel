@@ -14,8 +14,8 @@ that the instructions below match on.
 !`test -f .env && echo DOTENV_OK || echo DOTENV_MISSING`
 !`grep -qE '^(ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN)=.+' .env 2>/dev/null && echo CREDS_OK || echo CREDS_MISSING`
 !`docker image inspect macro-claw-worker:latest >/dev/null 2>&1 && echo WORKER_IMAGE_OK || echo WORKER_IMAGE_MISSING`
-!`docker image inspect macro-claw-orchestrator >/dev/null 2>&1 && echo ORCH_IMAGE_OK || echo ORCH_IMAGE_MISSING`
-!`docker ps --filter name=macro-claw-orchestrator --filter status=running --format '{{.Names}}' 2>/dev/null | grep -q macro-claw-orchestrator && echo ORCH_RUNNING || echo ORCH_STOPPED`
+!`docker image inspect mc2-orchestrator:latest >/dev/null 2>&1 && echo ORCH_IMAGE_OK || echo ORCH_IMAGE_MISSING`
+!`docker ps --filter ancestor=mc2-orchestrator:latest --filter status=running --format '{{.Names}}' 2>/dev/null | grep -q . && echo ORCH_RUNNING || echo ORCH_STOPPED`
 
 The lines above (in order) show:
 1. Docker daemon
@@ -124,8 +124,8 @@ If `ORCH_STOPPED`:
 
 After completing action steps, re-probe live state:
 
-!`docker ps --filter name=macro-claw-orchestrator --filter status=running --format '{{.Names}}' 2>/dev/null | grep -q macro-claw-orchestrator && echo ORCH_RUNNING || echo ORCH_STOPPED`
-!`curl -sf http://localhost:3001 >/dev/null 2>&1 && echo PROXY_OK || echo PROXY_UNREACHABLE`
+!`docker ps --filter ancestor=mc2-orchestrator:latest --filter status=running --format '{{.Names}}' 2>/dev/null | grep -q . && echo ORCH_RUNNING || echo ORCH_STOPPED`
+!`curl -sf http://localhost:3001/api/jobs >/dev/null 2>&1 && echo PROXY_OK || echo PROXY_UNREACHABLE`
 !`test -f orchestrator/data/macro-claw.db && echo DB_OK || echo DB_MISSING`
 
 Report:
