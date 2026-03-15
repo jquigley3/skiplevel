@@ -107,9 +107,8 @@ export function startCredentialProxy(
         return;
       }
 
-      // Tool API — task spawning, polling, job management.
-      // Intercept /api/tasks* and /api/jobs*; other /api/ paths (e.g. /api/oauth/) pass through.
-      if (req.url?.startsWith('/api/tasks') || req.url?.startsWith('/api/jobs')) {
+      // Tool API — task spawning, polling, job management, token registry.
+      if (req.url?.startsWith('/api/tasks') || req.url?.startsWith('/api/jobs') || req.url?.startsWith('/api/tokens')) {
         handleToolRequest(req, res).catch((err) => {
           logger.error({ err, url: req.url }, 'Tool API error');
           if (!res.headersSent) {

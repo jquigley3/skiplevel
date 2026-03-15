@@ -8,6 +8,12 @@ import { logger } from './logger.js';
 
 let db: Database.Database;
 
+/** Get the database instance (for use by permissions module). Call after initDb(). */
+export function getDb(): Database.Database {
+  if (!db) throw new Error('Database not initialized. Call initDb() first.');
+  return db;
+}
+
 export interface Job {
   id: string;
   status: 'pending' | 'running' | 'done' | 'failed';
@@ -110,6 +116,21 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_jobs_priority ON jobs(priority, created_at);
     CREATE INDEX IF NOT EXISTS idx_jobs_parent ON jobs(parent_job_id);
     CREATE INDEX IF NOT EXISTS idx_jobs_token ON jobs(job_token);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tokens (
+      id            TEXT PRIMARY KEY,
+      name          TEXT NOT NULL UNIQUE,
+      url_pattern   TEXT NOT NULL,
+      inject_header TEXT NOT NULL,
+      inject_value  TEXT NOT NULL,
+      description   TEXT,
+      project_dir   TEXT,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_tokens_name ON tokens(name);
+    CREATE INDEX IF NOT EXISTS idx_tokens_project ON tokens(project_dir);
   `);
 
   // Migrate: add columns that may not exist in older databases

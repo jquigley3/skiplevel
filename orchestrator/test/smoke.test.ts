@@ -14,6 +14,7 @@ process.env.DB_PATH = path.join(os.tmpdir(), `macro-claw-test-${Date.now()}.db`)
 
 // Lazy-loaded after env is set
 let db: typeof import('../src/db.js');
+let permissions: typeof import('../src/permissions.js');
 
 const tmpProjectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'macro-claw-test-project-'));
 
@@ -26,6 +27,7 @@ before(async () => {
 
   db = await import('../src/db.js');
   db.initDb();
+  permissions = await import('../src/permissions.js');
 });
 
 after(() => {
@@ -274,6 +276,96 @@ test('requeueJob resets job to pending with retry_count and retry_after', () => 
   assert.ok(requeued!.retry_after, 'retry_after should be set');
   assert.strictEqual(requeued!.error, null);
   assert.strictEqual(requeued!.job_token, null);
+});
+
+// ---------------------------------------------------------------------------
+// Token registry (Phase 1)
+// ---------------------------------------------------------------------------
+
+test('createToken registers a token', () => {
+  const id = permissions.createToken({
+    name: 'test-github',
+    url_pattern: 'https://api\\.github\\.com/.*',
+    inject_header: 'Authorization',
+    inject_value: 'Bearer secret123',
+    description: 'Test token',
+  });
+  assert.ok(id, 'Should return token ID');
+
+  const stored = permissions.getToken(id);
+  assert.ok(stored);
+  assert.strictEqual(stored!.name, 'test-github');
+  assert.strictEqual(stored!.url_pattern, 'https://api\\.github\\.com/.*');
+  assert.strictEqual(stored!.inject_value, 'Bearer secret123');
+  assert.strictEqual(stored!.description, 'Test token');
+  assert.strictEqual(stored!.project_dir, null);
+});
+
+test('getTokenByName finds token by name', () => {
+  permissions.createToken({
+    name: 'jira-read',
+    url_pattern: 'https://.*\\.atlassian\\.net/.*',
+    inject_header: 'Authorization',
+    inject_value: 'Bearer jira',
+  });
+  const t = permissions.getTokenByName('jira-read');
+  assert.ok(t);
+  assert.strictEqual(t!.name, 'jira-read');
+});
+
+test('listTokens returns all tokens', () => {
+  const before = permissions.listTokens().length;
+  permissions.createToken({
+    name: 'list-test-' + Date.now(),
+    url_pattern: 'https://example\\.com/.*',
+    inject_header: 'X-Api-Key',
+    inject_value: 'key',
+  });
+  const tokens = permissions.listTokens();
+  assert.ok(tokens.length >= before + 1);
+});
+
+test('listTokens filters by project_dir when provided', () => {
+  const projectA = '/tmp/project-a';
+  const projectB = '/tmp/project-b';
+  permissions.createToken({
+    name: 'global-token-' + Date.now(),
+    url_pattern: 'https://api\\.example\\.com/.*',
+    inject_header: 'Authorization',
+    inject_value: 'Bearer global',
+    project_dir: undefined,
+  });
+  permissions.createToken({
+    name: 'project-a-token-' + Date.now(),
+    url_pattern: 'https://api\\.example\\.com/.*',
+    inject_header: 'Authorization',
+    inject_value: 'Bearer a',
+    project_dir: projectA,
+  });
+  const forA = permissions.listTokens(projectA);
+  const forB = permissions.listTokens(projectB);
+  assert.ok(forA.some((t) => t.project_dir === null), 'Project A should see global tokens');
+  assert.ok(forA.some((t) => t.project_dir === projectA), 'Project A should see its tokens');
+  assert.ok(forB.some((t) => t.project_dir === null), 'Project B should see global tokens');
+  assert.ok(!forB.some((t) => t.project_dir === projectA), 'Project B should not see project A tokens');
+});
+
+test('deleteToken removes token by id or name', () => {
+  const id = permissions.createToken({
+    name: 'to-delete-' + Date.now(),
+    url_pattern: 'https://example\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'val',
+  });
+  assert.ok(permissions.getToken(id));
+  permissions.deleteToken(id);
+  assert.strictEqual(permissions.getToken(id), undefined);
+
+  const name = 'to-delete-by-name-' + Date.now();
+  permissions.createToken({ name, url_pattern: 'https://example.com/.*', inject_header: 'X-Key', inject_value: 'val' });
+  assert.ok(permissions.getTokenByName(name));
+  permissions.deleteToken(name);
+  assert.strictEqual(permissions.getTokenByName(name), undefined);
 });
 
 test('claimNextJob skips pending jobs whose retry_after has not passed', () => {

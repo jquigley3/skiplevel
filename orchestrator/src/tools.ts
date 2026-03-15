@@ -23,6 +23,14 @@ import {
   listChildJobs,
   Job,
 } from './db.js';
+import {
+  createToken,
+  getToken,
+  getTokenByName,
+  listTokens,
+  deleteToken,
+  CreateTokenInput,
+} from './permissions.js';
 import { logger } from './logger.js';
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -181,6 +189,93 @@ function handleListTasks(
 }
 
 // ---------------------------------------------------------------------------
+// Token registry (/api/tokens) — host-facing, no auth
+// ---------------------------------------------------------------------------
+
+function tokenSummary(token: { id: string; name: string; url_pattern: string; description: string | null; project_dir: string | null; created_at: string }): Record<string, unknown> {
+  return {
+    id: token.id,
+    name: token.name,
+    url_pattern: token.url_pattern,
+    description: token.description,
+    project_dir: token.project_dir,
+    created_at: token.created_at,
+  };
+}
+
+async function handleTokensRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<boolean> {
+  const url = req.url ?? '';
+  const tokenIdMatch = url.match(/^\/api\/tokens\/([^/?]+)/);
+
+  if (url === '/api/tokens' || url === '/api/tokens/') {
+    if (req.method === 'GET') {
+      const parsed = new URL(url, 'http://localhost');
+      const projectDir = parsed.searchParams.get('project_dir') ?? undefined;
+      const tokens = listTokens(projectDir);
+      json(res, 200, { tokens: tokens.map((t) => tokenSummary(t)) });
+    } else if (req.method === 'POST') {
+      const raw = await readBody(req);
+      let body: Record<string, unknown>;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        json(res, 400, { error: 'Invalid JSON body' });
+        return true;
+      }
+      const name = body.name as string | undefined;
+      const urlPattern = body.url_pattern as string | undefined;
+      const injectHeader = body.inject_header as string | undefined;
+      const injectValue = body.inject_value as string | undefined;
+      if (!name || !urlPattern || !injectHeader || !injectValue) {
+        json(res, 400, { error: 'Missing required fields: name, url_pattern, inject_header, inject_value' });
+        return true;
+      }
+      try {
+        const id = createToken({
+          name,
+          url_pattern: urlPattern,
+          inject_header: injectHeader,
+          inject_value: injectValue,
+          description: body.description as string | undefined,
+          project_dir: body.project_dir as string | undefined,
+        } as CreateTokenInput);
+        logger.info({ tokenId: id, name }, 'Token registered');
+        json(res, 201, { id, name, status: 'created' });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('UNIQUE constraint')) {
+          json(res, 409, { error: `Token with name '${name}' already exists` });
+        } else {
+          logger.error({ err }, 'Token creation error');
+          json(res, 500, { error: 'Failed to create token' });
+        }
+      }
+    } else {
+      json(res, 405, { error: 'Method not allowed' });
+    }
+    return true;
+  }
+
+  if (tokenIdMatch && req.method === 'DELETE') {
+    const idOrName = tokenIdMatch[1];
+    const existing = getToken(idOrName) ?? getTokenByName(idOrName);
+    if (!existing) {
+      json(res, 404, { error: 'Token not found' });
+      return true;
+    }
+    deleteToken(idOrName);
+    logger.info({ tokenId: existing.id, name: existing.name }, 'Token removed');
+    json(res, 200, { id: existing.id, status: 'deleted' });
+    return true;
+  }
+
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Host-facing endpoints (/api/jobs) — no auth, trusted callers
 // ---------------------------------------------------------------------------
 
@@ -325,6 +420,11 @@ export async function handleToolRequest(
   // Host-facing /api/jobs endpoints — no auth required
   if (url.startsWith('/api/jobs')) {
     return handleJobsRoute(req, res);
+  }
+
+  // Host-facing /api/tokens — no auth required
+  if (url.startsWith('/api/tokens')) {
+    return handleTokensRoute(req, res);
   }
 
   // Worker endpoints below require Bearer token auth
