@@ -28,7 +28,7 @@ What actually happened.
 
 - OS:
 - Node version:
-- ClawForge version / commit:
+- SkipLevel version / commit:
 
 ## Additional Context
 

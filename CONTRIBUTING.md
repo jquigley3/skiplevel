@@ -1,14 +1,14 @@
-# Contributing to ClawForge
+# Contributing to SkipLevel
 
-Thank you for your interest in contributing to ClawForge.
+Thank you for your interest in contributing to SkipLevel.
 
 ## Development Setup
 
 1. Clone the repo and install dependencies:
 
    ```bash
-   git clone https://github.com/jquigley3/clawforge.git
-   cd clawforge
+   git clone https://github.com/jquigley3/skiplevel.git
+   cd skiplevel
    npm install
    cd orchestrator && npm install
    ```

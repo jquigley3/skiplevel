@@ -1,4 +1,4 @@
-# ClawForge
+# SkipLevel
 
 **Status:** Planning
 
@@ -50,4 +50,4 @@ Sub-agents run via `sandbox-exec` with a profile that:
 
 ---
 
-[ClawForge on GitHub](https://github.com/jquigley3/clawforge)
+[SkipLevel on GitHub](https://github.com/jquigley3/skiplevel)
