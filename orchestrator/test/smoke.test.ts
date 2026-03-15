@@ -633,3 +633,53 @@ test('listPermissionRequests filters by status', () => {
   assert.ok(Array.isArray(pending));
   assert.ok(Array.isArray(approved));
 });
+
+// ---------------------------------------------------------------------------
+// Phase 4: Proxy endpoint (findMatchingToken)
+// ---------------------------------------------------------------------------
+
+test('findMatchingToken returns token and permission when job has access', () => {
+  const tokenId = permissions.createToken({
+    name: 'proxy-token-' + Date.now(),
+    url_pattern: 'https://api\\.example\\.com/.*',
+    inject_header: 'Authorization',
+    inject_value: 'Bearer secret',
+  });
+  const jobId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  permissions.grantPermission({ tokenId, jobId, canDelegate: false, grantedBy: 'human', durationMinutes: 60 });
+  const result = permissions.findMatchingToken('https://api.example.com/repos/foo', jobId, tmpProjectDir);
+  assert.ok(result);
+  assert.strictEqual(result!.token.id, tokenId);
+  assert.strictEqual(result!.permission.job_id, jobId);
+});
+
+test('findMatchingToken returns null when no token matches URL', () => {
+  const jobId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  const result = permissions.findMatchingToken('https://unknown.example.com/x', jobId, tmpProjectDir);
+  assert.strictEqual(result, null);
+});
+
+test('findMatchingToken returns null when token matches but job lacks permission', () => {
+  const tokenId = permissions.createToken({
+    name: 'noperm-proxy-' + Date.now(),
+    url_pattern: 'https://noperm\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'val',
+  });
+  const jobId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  // No permission granted
+  const result = permissions.findMatchingToken('https://noperm.com/api', jobId, tmpProjectDir);
+  assert.strictEqual(result, null);
+});
+
+test('findTokenMatchingUrl returns token when URL matches', () => {
+  const tokenId = permissions.createToken({
+    name: 'match-url-' + Date.now(),
+    url_pattern: 'https://match\\.test/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const token = permissions.findTokenMatchingUrl('https://match.test/foo', tmpProjectDir);
+  assert.ok(token);
+  assert.strictEqual(token!.id, tokenId);
+});

@@ -107,8 +107,8 @@ export function startCredentialProxy(
         return;
       }
 
-      // Tool API — task spawning, polling, job management, token registry, permissions.
-      if (req.url?.startsWith('/api/tasks') || req.url?.startsWith('/api/jobs') || req.url?.startsWith('/api/tokens') || req.url?.startsWith('/api/permissions') || req.url?.startsWith('/api/project-permissions')) {
+      // Tool API — task spawning, polling, job management, token registry, permissions, proxy.
+      if (req.url?.startsWith('/api/tasks') || req.url?.startsWith('/api/jobs') || req.url?.startsWith('/api/tokens') || req.url?.startsWith('/api/permissions') || req.url?.startsWith('/api/project-permissions') || req.url?.startsWith('/api/proxy')) {
         handleToolRequest(req, res).catch((err) => {
           logger.error({ err, url: req.url }, 'Tool API error');
           if (!res.headersSent) {

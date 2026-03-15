@@ -363,3 +363,43 @@ export function denyRequest(requestId: string, reason?: string): void {
     UPDATE permission_requests SET status = 'denied', decided_at = datetime('now'), decided_reason = ? WHERE id = ?
   `).run(reason ?? null, requestId);
 }
+
+// ---------------------------------------------------------------------------
+// Proxy: find matching token for URL
+// ---------------------------------------------------------------------------
+
+/** Find token and permission for a URL. Used by proxy to inject credentials. */
+export function findMatchingToken(
+  url: string,
+  jobId: string,
+  projectDir: string,
+): { token: Token; permission: Permission } | null {
+  const tokens = listTokens(projectDir);
+  for (const token of tokens) {
+    try {
+      const re = new RegExp(token.url_pattern);
+      if (!re.test(url)) continue;
+    } catch {
+      continue; // invalid regex
+    }
+    const perm = hasPermission(jobId, token.id);
+    if (perm) {
+      return { token, permission: perm };
+    }
+  }
+  return null;
+}
+
+/** Find token matching URL (for no_permission error — token exists but job lacks permission). */
+export function findTokenMatchingUrl(url: string, projectDir: string): Token | null {
+  const tokens = listTokens(projectDir);
+  for (const token of tokens) {
+    try {
+      const re = new RegExp(token.url_pattern);
+      if (re.test(url)) return token;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}

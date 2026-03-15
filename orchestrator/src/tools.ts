@@ -42,6 +42,8 @@ import {
   listPermissionRequests,
   approveRequest,
   denyRequest,
+  findMatchingToken,
+  findTokenMatchingUrl,
 } from './permissions.js';
 import { logger } from './logger.js';
 
@@ -250,6 +252,80 @@ function handleGetPermissions(res: ServerResponse, caller: Job): void {
       can_delegate: p.can_delegate === 1,
       expires_at: p.expires_at,
     })),
+  });
+}
+
+async function handleProxyRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  caller: Job,
+): Promise<void> {
+  if (req.method !== 'POST') {
+    json(res, 405, { error: 'Method not allowed' });
+    return;
+  }
+  const raw = await readBody(req);
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    json(res, 400, { error: 'Invalid JSON body' });
+    return;
+  }
+  const url = body.url as string | undefined;
+  const method = (body.method as string) ?? 'GET';
+  const headers = (body.headers as Record<string, string>) ?? {};
+  const bodyStr = body.body as string | null | undefined;
+
+  if (!url) {
+    json(res, 400, { error: 'Missing required field: url' });
+    return;
+  }
+
+  const match = findMatchingToken(url, caller.id, caller.project_dir);
+  if (match) {
+    const { token } = match;
+    const reqHeaders: Record<string, string> = { ...headers };
+    reqHeaders[token.inject_header] = token.inject_value;
+    try {
+      const proxyRes = await fetch(url, {
+        method,
+        headers: reqHeaders,
+        body: bodyStr != null ? bodyStr : undefined,
+      });
+      const resBody = await proxyRes.text();
+      const resHeaders: Record<string, string> = {};
+      proxyRes.headers.forEach((v, k) => {
+        resHeaders[k] = v;
+      });
+      json(res, 200, {
+        status: proxyRes.status,
+        headers: resHeaders,
+        body: resBody,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error({ err, url }, 'Proxy request failed');
+      json(res, 502, { error: 'Proxy request failed', message: msg });
+    }
+    return;
+  }
+
+  const tokenMatch = findTokenMatchingUrl(url, caller.project_dir);
+  if (tokenMatch) {
+    json(res, 403, {
+      error: 'no_permission',
+      message: `Token '${tokenMatch.name}' matches this URL but you don't have permission. Use POST /api/permissions/request to request access.`,
+      token_name: tokenMatch.name,
+      token_description: tokenMatch.description ?? undefined,
+    });
+    return;
+  }
+
+  json(res, 403, {
+    error: 'no_token',
+    message: 'No registered token matches this URL. Ask the project owner to register a token for this URL pattern.',
+    url,
   });
 }
 
@@ -793,6 +869,11 @@ export async function handleToolRequest(
 
   if (url.startsWith('/api/permissions/request')) {
     await handlePermissionRequest(req, res, caller);
+    return true;
+  }
+
+  if (url === '/api/proxy' || url === '/api/proxy/') {
+    await handleProxyRequest(req, res, caller);
     return true;
   }
 
