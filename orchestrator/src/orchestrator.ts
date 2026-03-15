@@ -23,6 +23,10 @@ import {
   jobCounts,
   Job,
 } from './db.js';
+import {
+  autoGrantProjectPermissions,
+  grantJobPermissions,
+} from './permissions.js';
 import { runWorker, WorkerResult, isRetryableError, parseRetryAfterFromError } from './worker.js';
 
 // ---------------------------------------------------------------------------
@@ -94,6 +98,17 @@ async function dispatchJob(job: Job): Promise<void> {
   const suffix = crypto.randomBytes(4).toString('hex');
 
   logger.info({ jobId: job.id, project: job.project_dir, priority: job.priority }, 'Dispatching job');
+
+  // Grant permissions: project defaults + explicit job-level grants
+  autoGrantProjectPermissions(job.id, job.project_dir);
+  if (job.permissions) {
+    try {
+      const perms = JSON.parse(job.permissions) as Array<{ token_name: string; can_delegate?: boolean; duration_minutes?: number }>;
+      grantJobPermissions(job.id, perms);
+    } catch {
+      logger.warn({ jobId: job.id }, 'Invalid permissions JSON — skipping job-level grants');
+    }
+  }
 
   const worktree = createWorktree(job.project_dir, job.id, suffix);
   const workDir = worktree?.path ?? job.project_dir;

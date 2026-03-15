@@ -30,6 +30,13 @@ import {
   listTokens,
   deleteToken,
   CreateTokenInput,
+  hasPermission,
+  delegatePermission,
+  getJobPermissions,
+  getProjectPermissions,
+  setProjectPermission,
+  removeProjectPermission,
+  listProjectPermissions,
 } from './permissions.js';
 import { logger } from './logger.js';
 
@@ -148,6 +155,28 @@ async function handleCreateTask(
   // Inherit parent's allowed_paths if child doesn't specify
   const effectivePaths = childPaths ?? (parentPaths.length > 0 ? parentPaths : undefined);
 
+  // Validate and delegate permissions (parent must have can_delegate for each token)
+  const permInputs = body.permissions as Array<{ token_name: string; can_delegate?: boolean; duration_minutes?: number }> | undefined;
+  if (permInputs && permInputs.length > 0) {
+    const defaultDuration = 60;
+    for (const p of permInputs) {
+      const token = getTokenByName(p.token_name);
+      if (!token) {
+        json(res, 400, { error: `Unknown token: ${p.token_name}` });
+        return;
+      }
+      const parentPerm = hasPermission(caller.id, token.id);
+      if (!parentPerm) {
+        json(res, 403, { error: `Parent lacks permission for token: ${p.token_name}` });
+        return;
+      }
+      if (parentPerm.can_delegate !== 1) {
+        json(res, 403, { error: `Parent cannot delegate token: ${p.token_name}` });
+        return;
+      }
+    }
+  }
+
   const id = createJob({
     prompt,
     project_dir: childProjectDir,
@@ -162,6 +191,25 @@ async function handleCreateTask(
     parent_job_id: caller.id,
     priority: (body.priority as number) ?? undefined,
   });
+
+  // Delegate permissions from parent to child
+  if (permInputs && permInputs.length > 0) {
+    const defaultDuration = 60;
+    for (const p of permInputs) {
+      const token = getTokenByName(p.token_name)!;
+      try {
+        delegatePermission(
+          caller.id,
+          id,
+          token.id,
+          p.can_delegate ?? false,
+          p.duration_minutes ?? defaultDuration,
+        );
+      } catch (err) {
+        logger.warn({ parentId: caller.id, childId: id, token: p.token_name, err }, 'Failed to delegate permission');
+      }
+    }
+  }
 
   logger.info({ parentId: caller.id, childId: id }, 'Child task spawned via tool API');
   json(res, 201, { id, status: 'pending' });
@@ -186,6 +234,18 @@ function handleListTasks(
 ): void {
   const children = listChildJobs(caller.id);
   json(res, 200, { tasks: children.map(jobSummary) });
+}
+
+function handleGetPermissions(res: ServerResponse, caller: Job): void {
+  const perms = getJobPermissions(caller.id);
+  json(res, 200, {
+    permissions: perms.map((p) => ({
+      id: p.id,
+      token_name: p.token_name,
+      can_delegate: p.can_delegate === 1,
+      expires_at: p.expires_at,
+    })),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -276,6 +336,76 @@ async function handleTokensRoute(
 }
 
 // ---------------------------------------------------------------------------
+// Project permissions (/api/project-permissions) — host-facing, no auth
+// ---------------------------------------------------------------------------
+
+async function handleProjectPermissionsRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<boolean> {
+  const url = req.url ?? '';
+  const ppIdMatch = url.match(/^\/api\/project-permissions\/([^/?]+)/);
+
+  if (url === '/api/project-permissions' || url === '/api/project-permissions/') {
+    if (req.method === 'GET') {
+      const projectPerms = listProjectPermissions();
+      json(res, 200, {
+        project_permissions: projectPerms.map((pp) => ({
+          id: pp.id,
+          project_dir: pp.project_dir,
+          token_id: pp.token_id,
+          can_delegate: pp.can_delegate === 1,
+          duration_minutes: pp.duration_minutes,
+        })),
+      });
+    } else if (req.method === 'POST') {
+      const raw = await readBody(req);
+      let body: Record<string, unknown>;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        json(res, 400, { error: 'Invalid JSON body' });
+        return true;
+      }
+      const projectDir = body.project_dir as string | undefined;
+      const tokenId = body.token_id as string | undefined;
+      const canDelegate = body.can_delegate as boolean | undefined;
+      const durationMinutes = body.duration_minutes as number | undefined;
+      if (!projectDir || !tokenId || durationMinutes == null) {
+        json(res, 400, { error: 'Missing required fields: project_dir, token_id, duration_minutes' });
+        return true;
+      }
+      const token = getToken(tokenId);
+      if (!token) {
+        json(res, 400, { error: 'Token not found' });
+        return true;
+      }
+      const id = setProjectPermission({
+        projectDir,
+        tokenId,
+        canDelegate: canDelegate ?? false,
+        durationMinutes,
+      });
+      logger.info({ id, projectDir, tokenId }, 'Project permission added');
+      json(res, 201, { id, status: 'created' });
+    } else {
+      json(res, 405, { error: 'Method not allowed' });
+    }
+    return true;
+  }
+
+  if (ppIdMatch && req.method === 'DELETE') {
+    const id = ppIdMatch[1];
+    removeProjectPermission(id);
+    logger.info({ id }, 'Project permission removed');
+    json(res, 200, { id, status: 'deleted' });
+    return true;
+  }
+
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Host-facing endpoints (/api/jobs) — no auth, trusted callers
 // ---------------------------------------------------------------------------
 
@@ -343,6 +473,7 @@ async function handleSubmitJob(
     mc2_tools: (body.tools as string[]) ?? undefined,
     allowed_paths: (body.allowed_paths as string[]) ?? undefined,
     priority: (body.priority as number) ?? undefined,
+    permissions: (body.permissions as Array<{ token_name: string; can_delegate?: boolean; duration_minutes?: number }>) ?? undefined,
   });
 
   logger.info({ jobId: id }, 'Job submitted via API');
@@ -427,6 +558,11 @@ export async function handleToolRequest(
     return handleTokensRoute(req, res);
   }
 
+  // Host-facing /api/project-permissions — no auth required
+  if (url.startsWith('/api/project-permissions')) {
+    return handleProjectPermissionsRoute(req, res);
+  }
+
   // Worker endpoints below require Bearer token auth
   const caller = authenticate(req);
   if (!caller) {
@@ -435,6 +571,15 @@ export async function handleToolRequest(
   }
 
   const taskIdMatch = url.match(/^\/api\/tasks\/([^/?]+)/);
+
+  if (url === '/api/permissions' || url === '/api/permissions/') {
+    if (req.method === 'GET') {
+      handleGetPermissions(res, caller);
+    } else {
+      json(res, 405, { error: 'Method not allowed' });
+    }
+    return true;
+  }
 
   if (url === '/api/tasks' || url === '/api/tasks/') {
     if (req.method === 'POST') {

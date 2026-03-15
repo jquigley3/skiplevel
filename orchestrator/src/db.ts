@@ -48,6 +48,7 @@ export interface Job {
   worktree_branch: string | null;
   retry_count: number;
   retry_after: string | null;
+  permissions: string | null;  // JSON array of { token_name, can_delegate, duration_minutes }
 }
 
 export interface CreateJobInput {
@@ -68,6 +69,7 @@ export interface CreateJobInput {
   allowed_paths?: string[];
   parent_job_id?: string;
   priority?: number;
+  permissions?: Array<{ token_name: string; can_delegate?: boolean; duration_minutes?: number }>;
 }
 
 export function initDb(): void {
@@ -133,6 +135,35 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_tokens_project ON tokens(project_dir);
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS permissions (
+      id            TEXT PRIMARY KEY,
+      token_id      TEXT NOT NULL,
+      job_id        TEXT NOT NULL,
+      can_delegate  INTEGER NOT NULL DEFAULT 0,
+      granted_by    TEXT NOT NULL,
+      expires_at    TEXT NOT NULL,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (token_id) REFERENCES tokens(id),
+      FOREIGN KEY (job_id) REFERENCES jobs(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_permissions_job ON permissions(job_id);
+    CREATE INDEX IF NOT EXISTS idx_permissions_token ON permissions(token_id);
+    CREATE INDEX IF NOT EXISTS idx_permissions_expires ON permissions(expires_at);
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_permissions (
+      id                 TEXT PRIMARY KEY,
+      project_dir        TEXT NOT NULL,
+      token_id           TEXT NOT NULL,
+      can_delegate       INTEGER NOT NULL DEFAULT 0,
+      duration_minutes   INTEGER NOT NULL,
+      FOREIGN KEY (token_id) REFERENCES tokens(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_permissions_dir ON project_permissions(project_dir);
+  `);
+
   // Migrate: add columns that may not exist in older databases
   const cols = db.prepare("PRAGMA table_info(jobs)").all() as Array<{ name: string }>;
   const colNames = new Set(cols.map((c) => c.name));
@@ -143,6 +174,7 @@ export function initDb(): void {
     ['parent_job_id', 'TEXT'],
     ['retry_count', 'INTEGER DEFAULT 0'],
     ['retry_after', 'TEXT'],
+    ['permissions', 'TEXT'],
   ];
   for (const [col, type] of migrations) {
     if (!colNames.has(col)) {
@@ -168,8 +200,8 @@ export function createJob(input: CreateJobInput): string {
     INSERT INTO jobs (id, prompt, project_dir, model, max_turns, max_budget_usd,
       system_prompt, append_system_prompt, permission_mode,
       allowed_tools, disallowed_tools, claude_md, extra_env,
-      mc2_tools, allowed_paths, parent_job_id, priority)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      mc2_tools, allowed_paths, parent_job_id, priority, permissions)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     input.prompt,
@@ -188,6 +220,7 @@ export function createJob(input: CreateJobInput): string {
     input.allowed_paths ? JSON.stringify(input.allowed_paths) : null,
     input.parent_job_id ?? null,
     input.priority ?? 0,
+    input.permissions ? JSON.stringify(input.permissions) : null,
   );
 
   return id;

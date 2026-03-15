@@ -283,8 +283,9 @@ test('requeueJob resets job to pending with retry_count and retry_after', () => 
 // ---------------------------------------------------------------------------
 
 test('createToken registers a token', () => {
+  const name = 'test-github-' + Date.now();
   const id = permissions.createToken({
-    name: 'test-github',
+    name,
     url_pattern: 'https://api\\.github\\.com/.*',
     inject_header: 'Authorization',
     inject_value: 'Bearer secret123',
@@ -294,7 +295,7 @@ test('createToken registers a token', () => {
 
   const stored = permissions.getToken(id);
   assert.ok(stored);
-  assert.strictEqual(stored!.name, 'test-github');
+  assert.strictEqual(stored!.name, name);
   assert.strictEqual(stored!.url_pattern, 'https://api\\.github\\.com/.*');
   assert.strictEqual(stored!.inject_value, 'Bearer secret123');
   assert.strictEqual(stored!.description, 'Test token');
@@ -302,15 +303,16 @@ test('createToken registers a token', () => {
 });
 
 test('getTokenByName finds token by name', () => {
+  const name = 'jira-read-' + Date.now();
   permissions.createToken({
-    name: 'jira-read',
+    name,
     url_pattern: 'https://.*\\.atlassian\\.net/.*',
     inject_header: 'Authorization',
     inject_value: 'Bearer jira',
   });
-  const t = permissions.getTokenByName('jira-read');
+  const t = permissions.getTokenByName(name);
   assert.ok(t);
-  assert.strictEqual(t!.name, 'jira-read');
+  assert.strictEqual(t!.name, name);
 });
 
 test('listTokens returns all tokens', () => {
@@ -403,4 +405,152 @@ test('claimNextJob skips pending jobs whose retry_after has not passed', () => {
     exit_code: 0, result_text: null, transcript: '', cost_usd: null,
     duration_ms: 0, worker_container: 'test', worktree_path: null, worktree_branch: null,
   });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2: Permission grants, delegation, project permissions
+// ---------------------------------------------------------------------------
+
+test('grantPermission creates permission and getJobPermissions returns it', () => {
+  const tokenId = permissions.createToken({
+    name: 'grant-test-' + Date.now(),
+    url_pattern: 'https://api\\.example\\.com/.*',
+    inject_header: 'Authorization',
+    inject_value: 'Bearer x',
+  });
+  const jobId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  const permId = permissions.grantPermission({
+    tokenId,
+    jobId,
+    canDelegate: true,
+    grantedBy: 'human',
+    durationMinutes: 60,
+  });
+  assert.ok(permId);
+  const perms = permissions.getJobPermissions(jobId);
+  assert.strictEqual(perms.length, 1);
+  assert.strictEqual(perms[0].id, permId);
+  assert.strictEqual(perms[0].token_id, tokenId);
+  assert.strictEqual(perms[0].can_delegate, 1);
+});
+
+test('hasPermission returns permission when active', () => {
+  const tokenId = permissions.createToken({
+    name: 'hasperm-' + Date.now(),
+    url_pattern: 'https://x\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const jobId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  permissions.grantPermission({ tokenId, jobId, canDelegate: false, grantedBy: 'human', durationMinutes: 60 });
+  const p = permissions.hasPermission(jobId, tokenId);
+  assert.ok(p);
+  assert.strictEqual(p!.can_delegate, 0);
+});
+
+test('hasPermission returns null when no permission', () => {
+  const tokenId = permissions.createToken({
+    name: 'noperm-' + Date.now(),
+    url_pattern: 'https://y\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const jobId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  assert.strictEqual(permissions.hasPermission(jobId, tokenId), null);
+});
+
+test('revokePermission removes permission', () => {
+  const tokenId = permissions.createToken({
+    name: 'revoke-' + Date.now(),
+    url_pattern: 'https://z\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const jobId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  const permId = permissions.grantPermission({ tokenId, jobId, canDelegate: false, grantedBy: 'human', durationMinutes: 60 });
+  permissions.revokePermission(permId);
+  assert.strictEqual(permissions.hasPermission(jobId, tokenId), null);
+});
+
+test('delegatePermission grants child permission when parent has can_delegate', () => {
+  const tokenId = permissions.createToken({
+    name: 'delegate-' + Date.now(),
+    url_pattern: 'https://d\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const parentId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  const childId = db.createJob({ prompt: 'C', project_dir: tmpProjectDir });
+  permissions.grantPermission({ tokenId, jobId: parentId, canDelegate: true, grantedBy: 'human', durationMinutes: 60 });
+  const permId = permissions.delegatePermission(parentId, childId, tokenId, false, 30);
+  assert.ok(permId);
+  const childPerm = permissions.hasPermission(childId, tokenId);
+  assert.ok(childPerm);
+  assert.strictEqual(childPerm!.can_delegate, 0);
+  assert.strictEqual(childPerm!.granted_by, parentId);
+});
+
+test('delegatePermission throws when parent lacks can_delegate', () => {
+  const tokenId = permissions.createToken({
+    name: 'nodelegate-' + Date.now(),
+    url_pattern: 'https://nd\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const parentId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  const childId = db.createJob({ prompt: 'C', project_dir: tmpProjectDir });
+  permissions.grantPermission({ tokenId, jobId: parentId, canDelegate: false, grantedBy: 'human', durationMinutes: 60 });
+  assert.throws(
+    () => permissions.delegatePermission(parentId, childId, tokenId, false, 30),
+    /delegation rights/,
+  );
+});
+
+test('setProjectPermission and autoGrantProjectPermissions', () => {
+  const tokenId = permissions.createToken({
+    name: 'projperm-' + Date.now(),
+    url_pattern: 'https://pp\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const projectDir = '/unique/proj-' + Date.now();
+  const ppId = permissions.setProjectPermission({
+    projectDir,
+    tokenId,
+    canDelegate: true,
+    durationMinutes: 15,
+  });
+  assert.ok(ppId);
+  const jobId = db.createJob({ prompt: 'P', project_dir: projectDir });
+  permissions.autoGrantProjectPermissions(jobId, projectDir);
+  const perms = permissions.getJobPermissions(jobId);
+  assert.strictEqual(perms.length, 1);
+  assert.strictEqual(perms[0].token_id, tokenId);
+  assert.strictEqual(perms[0].can_delegate, 1);
+});
+
+test('getProjectPermissions returns matching project perms', () => {
+  const tokenId = permissions.createToken({
+    name: 'getproj-' + Date.now(),
+    url_pattern: 'https://gp\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  permissions.setProjectPermission({ projectDir: '/foo', tokenId, canDelegate: false, durationMinutes: 10 });
+  const forFoo = permissions.getProjectPermissions('/foo/bar');
+  assert.ok(forFoo.length >= 1);
+  assert.ok(forFoo.some((pp) => pp.project_dir === '/foo' && pp.token_id === tokenId));
+});
+
+test('removeProjectPermission removes project perm', () => {
+  const tokenId = permissions.createToken({
+    name: 'rmproj-' + Date.now(),
+    url_pattern: 'https://rp\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const ppId = permissions.setProjectPermission({ projectDir: '/rm', tokenId, canDelegate: false, durationMinutes: 5 });
+  permissions.removeProjectPermission(ppId);
+  const list = permissions.listProjectPermissions();
+  assert.ok(!list.some((pp) => pp.id === ppId));
 });
