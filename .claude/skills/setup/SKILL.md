@@ -16,7 +16,6 @@ that the instructions below match on.
 !`docker image inspect macro-claw-worker:latest >/dev/null 2>&1 && echo WORKER_IMAGE_OK || echo WORKER_IMAGE_MISSING`
 !`docker image inspect macro-claw-orchestrator >/dev/null 2>&1 && echo ORCH_IMAGE_OK || echo ORCH_IMAGE_MISSING`
 !`docker ps --filter name=macro-claw-orchestrator --filter status=running --format '{{.Names}}' 2>/dev/null | grep -q macro-claw-orchestrator && echo ORCH_RUNNING || echo ORCH_STOPPED`
-!`test -f docker-compose.yaml && echo COMPOSE_OK || echo COMPOSE_MISSING`
 
 The lines above (in order) show:
 1. Docker daemon
@@ -25,7 +24,6 @@ The lines above (in order) show:
 4. `macro-claw-worker:latest` Docker image
 5. Orchestrator Docker image
 6. Orchestrator container running
-7. `docker-compose.yaml` at project root
 
 ---
 
@@ -106,7 +104,6 @@ If `CREDS_MISSING`:
 #### Step 4 — Build images
 
 If `WORKER_IMAGE_MISSING` or `ORCH_IMAGE_MISSING`:
-- First, verify `docker-compose.yaml` exists at project root (required by `./dev.sh build`)
 - Run:
   ```bash
   ./dev.sh build

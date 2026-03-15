@@ -79,7 +79,7 @@ invoking `/setup`, and checking the output against expected behavior.
 
 **Pass criteria:**
 - Zero side effects (no files created, no commands run beyond probes)
-- Output contains status for all 7 items
+- Output contains status for all 6 items
 
 ### E5 — Docker not running
 

@@ -10,7 +10,7 @@ case "${1:-}" in
     echo "==> Building worker image..."
     docker build -t macro-claw-worker:latest "$SCRIPT_DIR/orchestrator/container"
     echo "==> Building orchestrator..."
-    docker compose -f "$SCRIPT_DIR/docker-compose.yaml" build
+    docker build -t mc2-orchestrator "$SCRIPT_DIR/orchestrator"
     ;;
   build-worker)
     echo "==> Building worker image..."
