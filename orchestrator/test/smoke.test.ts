@@ -185,3 +185,29 @@ test('createJob with capabilities and parent_job_id', () => {
   assert.strictEqual(children.length, 1);
   assert.strictEqual(children[0].id, childId);
 });
+
+test('createJob with allowed_paths stores and retrieves correctly', () => {
+  const jobId = db.createJob({
+    prompt: 'Allowed paths test',
+    project_dir: '/tmp/test-project',
+    allowed_paths: ['/tmp/test-project', '/tmp/shared-data'],
+  });
+
+  const job = db.getJob(jobId);
+  assert.ok(job);
+  assert.strictEqual(job!.allowed_paths, '["/tmp/test-project","/tmp/shared-data"]');
+
+  const parsed = JSON.parse(job!.allowed_paths!) as string[];
+  assert.deepStrictEqual(parsed, ['/tmp/test-project', '/tmp/shared-data']);
+});
+
+test('allowed_paths defaults to null when not specified', () => {
+  const jobId = db.createJob({
+    prompt: 'No paths test',
+    project_dir: '/tmp/test-project',
+  });
+
+  const job = db.getJob(jobId);
+  assert.ok(job);
+  assert.strictEqual(job!.allowed_paths, null);
+});

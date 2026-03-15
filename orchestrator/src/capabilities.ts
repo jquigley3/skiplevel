@@ -50,6 +50,21 @@ function hasCapability(job: Job, cap: string): boolean {
   }
 }
 
+function parseAllowedPaths(job: Job): string[] {
+  if (!job.allowed_paths) return [];
+  try {
+    return JSON.parse(job.allowed_paths) as string[];
+  } catch {
+    return [];
+  }
+}
+
+function isPathAllowed(path: string, allowedPaths: string[]): boolean {
+  return allowedPaths.some(
+    (allowed) => path === allowed || path.startsWith(allowed + '/'),
+  );
+}
+
 function jobSummary(job: Job): Record<string, unknown> {
   return {
     id: job.id,
@@ -89,9 +104,35 @@ async function handleCreateTask(
     return;
   }
 
+  const parentPaths = parseAllowedPaths(caller);
+
+  // Validate child's project_dir against parent's allowed_paths
+  const childProjectDir = (body.project_dir as string) || caller.project_dir;
+  if (parentPaths.length > 0 && !isPathAllowed(childProjectDir, parentPaths)) {
+    json(res, 403, {
+      error: `project_dir "${childProjectDir}" is not in parent's allowed_paths`,
+    });
+    return;
+  }
+
+  // Validate child's allowed_paths are a subset of parent's
+  const childPaths = (body.allowed_paths as string[]) ?? undefined;
+  if (childPaths && parentPaths.length > 0) {
+    const disallowed = childPaths.filter((p) => !isPathAllowed(p, parentPaths));
+    if (disallowed.length > 0) {
+      json(res, 403, {
+        error: `allowed_paths not permitted by parent: ${disallowed.join(', ')}`,
+      });
+      return;
+    }
+  }
+
+  // Inherit parent's allowed_paths if child doesn't specify
+  const effectivePaths = childPaths ?? (parentPaths.length > 0 ? parentPaths : undefined);
+
   const id = createJob({
     prompt,
-    project_dir: (body.project_dir as string) || caller.project_dir,
+    project_dir: childProjectDir,
     model: (body.model as string) ?? undefined,
     max_turns: (body.max_turns as number) ?? undefined,
     max_budget_usd: (body.max_budget_usd as number) ?? undefined,
@@ -99,6 +140,7 @@ async function handleCreateTask(
     append_system_prompt: (body.append_system_prompt as string) ?? undefined,
     permission_mode: (body.permission_mode as string) ?? undefined,
     capabilities: (body.capabilities as string[]) ?? undefined,
+    allowed_paths: effectivePaths,
     parent_job_id: caller.id,
     priority: (body.priority as number) ?? undefined,
   });

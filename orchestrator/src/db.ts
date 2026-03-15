@@ -24,6 +24,7 @@ export interface Job {
   claude_md: string | null;
   extra_env: string | null;        // JSON object string
   capabilities: string | null;    // JSON array string, e.g. '["spawn_task"]'
+  allowed_paths: string | null;  // JSON array of host directory paths
   job_token: string | null;       // random secret, set at claim time
   parent_job_id: string | null;
   priority: number;
@@ -56,6 +57,7 @@ export interface CreateJobInput {
   claude_md?: string;
   extra_env?: Record<string, string>;
   capabilities?: string[];
+  allowed_paths?: string[];
   parent_job_id?: string;
   priority?: number;
 }
@@ -85,6 +87,7 @@ export function initDb(): void {
       claude_md            TEXT,
       extra_env            TEXT,
       capabilities         TEXT,
+      allowed_paths        TEXT,
       job_token            TEXT,
       parent_job_id        TEXT,
       priority             INTEGER NOT NULL DEFAULT 0,
@@ -112,6 +115,7 @@ export function initDb(): void {
   const colNames = new Set(cols.map((c) => c.name));
   const migrations: Array<[string, string]> = [
     ['capabilities', 'TEXT'],
+    ['allowed_paths', 'TEXT'],
     ['job_token', 'TEXT'],
     ['parent_job_id', 'TEXT'],
   ];
@@ -133,8 +137,8 @@ export function createJob(input: CreateJobInput): string {
     INSERT INTO jobs (id, prompt, project_dir, model, max_turns, max_budget_usd,
       system_prompt, append_system_prompt, permission_mode,
       allowed_tools, disallowed_tools, claude_md, extra_env,
-      capabilities, parent_job_id, priority)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      capabilities, allowed_paths, parent_job_id, priority)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     input.prompt,
@@ -150,6 +154,7 @@ export function createJob(input: CreateJobInput): string {
     input.claude_md ?? null,
     input.extra_env ? JSON.stringify(input.extra_env) : null,
     input.capabilities ? JSON.stringify(input.capabilities) : null,
+    input.allowed_paths ? JSON.stringify(input.allowed_paths) : null,
     input.parent_job_id ?? null,
     input.priority ?? 0,
   );
