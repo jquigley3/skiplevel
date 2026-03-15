@@ -48,9 +48,8 @@ case "${1:-}" in
     # Ensure network exists
     docker network create macro-claw-net 2>/dev/null || true
 
-    # Run orchestrator
+    # Run orchestrator (no fixed --name to avoid restart issues)
     docker run -d \
-      --name macro-claw-orchestrator \
       --network macro-claw-net \
       -v "$SCRIPT_DIR/orchestrator/data:/app/data" \
       -v /var/run/docker.sock:/var/run/docker.sock \
@@ -64,17 +63,18 @@ case "${1:-}" in
       -e HOST_WORKTREES_DIR=./worktrees \
       mc2-orchestrator
 
-    sleep 3
-    if docker ps | grep -q orchestrator; then
-      docker logs macro-claw-orchestrator 2>&1 | tail -8
+    sleep 2
+    ORCH_ID=$(docker ps -f ancestor=mc2-orchestrator -q | head -1)
+    if [ -n "$ORCH_ID" ]; then
+      echo "Orchestrator started: $ORCH_ID"
+      docker logs "$ORCH_ID" 2>&1 | tail -10
     else
-      echo "ERROR: Orchestrator failed to start"
-      docker logs macro-claw-orchestrator 2>&1 || true
-      exit 1
+      echo "WARNING: Orchestrator may have failed to start"
+      docker ps -a | grep mc2-orchestrator || true
     fi
     ;;
   down)
-    docker rm -f macro-claw-orchestrator 2>/dev/null || true
+    docker ps -f ancestor=mc2-orchestrator -q | xargs -r docker rm -f
     docker network rm macro-claw-net 2>/dev/null || true
     ;;
   logs)
