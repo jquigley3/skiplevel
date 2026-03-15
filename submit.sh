@@ -4,6 +4,7 @@
 #   --priority <n>                  Lower runs first (default 0)
 #   --tools <t1,t2>                Comma-separated mc2 tools to grant
 #   --allowed-paths <p1,p2>         Comma-separated allowed paths
+#   --permission <spec>             Pre-grant permission (repeatable). Format: token_name:delegate:duration_min
 #   --append-system-prompt <text>   Append to system prompt
 #   --append-system-prompt-file <f> Read file and append to system prompt
 set -euo pipefail
@@ -18,6 +19,7 @@ MODEL=""
 PRIORITY="0"
 TOOLS=""
 ALLOWED_PATHS=""
+PERMISSIONS=()
 APPEND_SYSTEM_PROMPT=""
 
 while [[ $# -gt 0 ]]; do
@@ -26,11 +28,29 @@ while [[ $# -gt 0 ]]; do
     --priority)                   PRIORITY="$2"; shift 2 ;;
     --tools)                      TOOLS="$2"; shift 2 ;;
     --allowed-paths)              ALLOWED_PATHS="$2"; shift 2 ;;
+    --permission)                 PERMISSIONS+=("$2"); shift 2 ;;
     --append-system-prompt)       APPEND_SYSTEM_PROMPT="$2"; shift 2 ;;
     --append-system-prompt-file)  APPEND_SYSTEM_PROMPT="$(cat "$2")"; shift 2 ;;
     *) echo "Unknown flag: $1" >&2; exit 1 ;;
   esac
 done
+
+# Parse permissions: token_name:delegate_flag:duration_minutes (e.g. github-ro:delegate:60 or jira-read::30)
+# delegate_flag is "delegate" or empty
+PERMS_JSON="[]"
+if [[ ${#PERMISSIONS[@]} -gt 0 ]]; then
+  PERMS_JSON=$(python3 -c "
+import json, sys
+perms = []
+for spec in sys.argv[1:]:
+    parts = spec.split(':', 2)
+    token_name = parts[0] if parts else ''
+    delegate = (len(parts) > 1 and parts[1].lower() == 'delegate')
+    duration = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 60
+    perms.append({'token_name': token_name, 'can_delegate': delegate, 'duration_minutes': duration})
+print(json.dumps(perms))
+" "${PERMISSIONS[@]}")
+fi
 
 # Build JSON payload via Python (handles arbitrary prompt content safely)
 PAYLOAD=$(python3 -c "
@@ -45,7 +65,8 @@ body = {
 model = sys.argv[4]
 caps = sys.argv[5]
 paths = sys.argv[6]
-append_sp = sys.argv[7]
+perms = sys.argv[7]
+append_sp = sys.argv[8]
 
 if model:
     body['model'] = model
@@ -53,11 +74,13 @@ if caps:
     body['tools'] = caps.split(',')
 if paths:
     body['allowed_paths'] = paths.split(',')
+if perms and perms != '[]':
+    body['permissions'] = json.loads(perms)
 if append_sp:
     body['append_system_prompt'] = append_sp
 
 print(json.dumps(body))
-" "$PROMPT" "$PROJECT_DIR" "$PRIORITY" "$MODEL" "$TOOLS" "$ALLOWED_PATHS" "$APPEND_SYSTEM_PROMPT")
+" "$PROMPT" "$PROJECT_DIR" "$PRIORITY" "$MODEL" "$TOOLS" "$ALLOWED_PATHS" "$PERMS_JSON" "$APPEND_SYSTEM_PROMPT")
 
 RESPONSE=$(curl -s -X POST "$MC2_API/api/jobs" \
   -H "Content-Type: application/json" \

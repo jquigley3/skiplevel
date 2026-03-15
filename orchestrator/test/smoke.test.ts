@@ -673,13 +673,48 @@ test('findMatchingToken returns null when token matches but job lacks permission
 });
 
 test('findTokenMatchingUrl returns token when URL matches', () => {
-  const tokenId = permissions.createToken({
-    name: 'match-url-' + Date.now(),
-    url_pattern: 'https://match\\.test/.*',
+  const ts = Date.now();
+  const name = 'match-url-' + ts;
+  const domain = 'unique' + ts;
+  permissions.createToken({
+    name,
+    url_pattern: `https://${domain}\\.example\\.com/.*`,
     inject_header: 'X-Key',
     inject_value: 'v',
   });
-  const token = permissions.findTokenMatchingUrl('https://match.test/foo', tmpProjectDir);
+  const token = permissions.findTokenMatchingUrl(`https://${domain}.example.com/foo`, tmpProjectDir);
   assert.ok(token);
-  assert.strictEqual(token!.id, tokenId);
+  assert.strictEqual(token!.name, name);
+});
+
+// ---------------------------------------------------------------------------
+// Phase 5: Job submission with permissions
+// ---------------------------------------------------------------------------
+
+test('createJob with permissions stores and grants on dispatch', () => {
+  const tokenId = permissions.createToken({
+    name: 'submit-perm-' + Date.now(),
+    url_pattern: 'https://submit\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const token = permissions.getToken(tokenId)!;
+  const jobId = db.createJob({
+    prompt: 'P',
+    project_dir: tmpProjectDir,
+    permissions: [
+      { token_name: token.name, can_delegate: true, duration_minutes: 45 },
+    ],
+  });
+  const job = db.getJob(jobId);
+  assert.ok(job!.permissions);
+  const stored = JSON.parse(job!.permissions!);
+  assert.strictEqual(stored[0].token_name, token.name);
+  assert.strictEqual(stored[0].can_delegate, true);
+  assert.strictEqual(stored[0].duration_minutes, 45);
+  // Simulate dispatchJob's grant flow
+  permissions.grantJobPermissions(jobId, stored);
+  const perms = permissions.getJobPermissions(jobId);
+  assert.strictEqual(perms.length, 1);
+  assert.strictEqual(perms[0].token_name, token.name);
 });
