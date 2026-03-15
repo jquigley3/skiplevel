@@ -2,7 +2,7 @@
 # Usage: ./submit.sh <project-dir> <prompt> [flags]
 #   --model <m>                     Model override
 #   --priority <n>                  Lower runs first (default 0)
-#   --capabilities <c1,c2>          Comma-separated capabilities
+#   --tools <t1,t2>                Comma-separated mc2 tools to grant
 #   --allowed-paths <p1,p2>         Comma-separated allowed paths
 #   --append-system-prompt <text>   Append to system prompt
 #   --append-system-prompt-file <f> Read file and append to system prompt
@@ -16,7 +16,7 @@ shift 2
 
 MODEL=""
 PRIORITY="0"
-CAPABILITIES=""
+TOOLS=""
 ALLOWED_PATHS=""
 APPEND_SYSTEM_PROMPT=""
 
@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --model)                      MODEL="$2"; shift 2 ;;
     --priority)                   PRIORITY="$2"; shift 2 ;;
-    --capabilities)               CAPABILITIES="$2"; shift 2 ;;
+    --tools)                      TOOLS="$2"; shift 2 ;;
     --allowed-paths)              ALLOWED_PATHS="$2"; shift 2 ;;
     --append-system-prompt)       APPEND_SYSTEM_PROMPT="$2"; shift 2 ;;
     --append-system-prompt-file)  APPEND_SYSTEM_PROMPT="$(cat "$2")"; shift 2 ;;
@@ -50,14 +50,14 @@ append_sp = sys.argv[7]
 if model:
     body['model'] = model
 if caps:
-    body['capabilities'] = caps.split(',')
+    body['tools'] = caps.split(',')
 if paths:
     body['allowed_paths'] = paths.split(',')
 if append_sp:
     body['append_system_prompt'] = append_sp
 
 print(json.dumps(body))
-" "$PROMPT" "$PROJECT_DIR" "$PRIORITY" "$MODEL" "$CAPABILITIES" "$ALLOWED_PATHS" "$APPEND_SYSTEM_PROMPT")
+" "$PROMPT" "$PROJECT_DIR" "$PRIORITY" "$MODEL" "$TOOLS" "$ALLOWED_PATHS" "$APPEND_SYSTEM_PROMPT")
 
 RESPONSE=$(curl -s -X POST "$MC2_API/api/jobs" \
   -H "Content-Type: application/json" \

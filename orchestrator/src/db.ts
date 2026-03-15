@@ -23,7 +23,7 @@ export interface Job {
   disallowed_tools: string | null; // JSON array string
   claude_md: string | null;
   extra_env: string | null;        // JSON object string
-  capabilities: string | null;    // JSON array string, e.g. '["spawn_task"]'
+  mc2_tools: string | null;       // JSON array of mc2 tool names, e.g. '["spawn_task"]'
   allowed_paths: string | null;  // JSON array of host directory paths
   job_token: string | null;       // random secret, set at claim time
   parent_job_id: string | null;
@@ -56,7 +56,7 @@ export interface CreateJobInput {
   disallowed_tools?: string[];
   claude_md?: string;
   extra_env?: Record<string, string>;
-  capabilities?: string[];
+  mc2_tools?: string[];
   allowed_paths?: string[];
   parent_job_id?: string;
   priority?: number;
@@ -86,7 +86,7 @@ export function initDb(): void {
       disallowed_tools     TEXT,
       claude_md            TEXT,
       extra_env            TEXT,
-      capabilities         TEXT,
+      mc2_tools            TEXT,
       allowed_paths        TEXT,
       job_token            TEXT,
       parent_job_id        TEXT,
@@ -114,7 +114,7 @@ export function initDb(): void {
   const cols = db.prepare("PRAGMA table_info(jobs)").all() as Array<{ name: string }>;
   const colNames = new Set(cols.map((c) => c.name));
   const migrations: Array<[string, string]> = [
-    ['capabilities', 'TEXT'],
+    ['mc2_tools', 'TEXT'],
     ['allowed_paths', 'TEXT'],
     ['job_token', 'TEXT'],
     ['parent_job_id', 'TEXT'],
@@ -124,6 +124,12 @@ export function initDb(): void {
       db.exec(`ALTER TABLE jobs ADD COLUMN ${col} ${type}`);
       logger.info({ column: col }, 'Migrated jobs table — added column');
     }
+  }
+
+  // Migrate data from old 'capabilities' column to 'mc2_tools' if needed
+  if (colNames.has('capabilities')) {
+    db.exec("UPDATE jobs SET mc2_tools = capabilities WHERE mc2_tools IS NULL AND capabilities IS NOT NULL");
+    logger.info('Migrated data: capabilities → mc2_tools');
   }
 
   logger.info({ path: DB_PATH }, 'Database initialized');
@@ -137,7 +143,7 @@ export function createJob(input: CreateJobInput): string {
     INSERT INTO jobs (id, prompt, project_dir, model, max_turns, max_budget_usd,
       system_prompt, append_system_prompt, permission_mode,
       allowed_tools, disallowed_tools, claude_md, extra_env,
-      capabilities, allowed_paths, parent_job_id, priority)
+      mc2_tools, allowed_paths, parent_job_id, priority)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
@@ -153,7 +159,7 @@ export function createJob(input: CreateJobInput): string {
     input.disallowed_tools ? JSON.stringify(input.disallowed_tools) : null,
     input.claude_md ?? null,
     input.extra_env ? JSON.stringify(input.extra_env) : null,
-    input.capabilities ? JSON.stringify(input.capabilities) : null,
+    input.mc2_tools ? JSON.stringify(input.mc2_tools) : null,
     input.allowed_paths ? JSON.stringify(input.allowed_paths) : null,
     input.parent_job_id ?? null,
     input.priority ?? 0,
@@ -277,7 +283,7 @@ export function resetStaleJobs(): number {
   return result.changes;
 }
 
-/** Look up a running job by its token (for capability API auth). */
+/** Look up a running job by its token (for tool API auth). */
 export function getJobByToken(token: string): Job | undefined {
   return db.prepare(
     "SELECT * FROM jobs WHERE job_token = ? AND status = 'running'"

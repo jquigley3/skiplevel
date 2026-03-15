@@ -6,7 +6,7 @@ mc2 (macro-claw) is a task orchestrator that dispatches Claude Code CLI invocati
 
 - **Orchestrator** (`orchestrator/src/orchestrator.ts`) — polls the SQLite job queue for pending jobs, claims them atomically, creates git worktrees (if applicable), and spawns worker containers.
 - **Credential Proxy** (`orchestrator/src/credential-proxy.ts`) — HTTP proxy on port 3001. Intercepts Anthropic API calls from workers and injects real credentials (API key or OAuth token). Also routes `/api/tasks` and `/api/jobs` requests to the capability API.
-- **Capability API** (`orchestrator/src/capabilities.ts`) — REST endpoints for task spawning (worker-facing, Bearer token auth) and job management (host-facing, no auth).
+- **Tool API** (`orchestrator/src/tools.ts`) — REST endpoints for task spawning (worker-facing, Bearer token auth) and job management (host-facing, no auth).
 - **Worker** (`orchestrator/src/worker.ts`) — builds Docker `run` arguments and spawns `claude` CLI in a container. Parses `stream-json` output for transcripts, costs, and results.
 - **Job Queue** (`orchestrator/src/db.ts`) — SQLite via `better-sqlite3`. WAL mode. Single-writer (orchestrator process only) to avoid VirtioFS locking issues on macOS Docker.
 
@@ -28,18 +28,18 @@ SQLite WAL mode has known issues with Docker's VirtioFS on macOS. The current so
 
 Cursor's `cursorsandbox` terminal wrapper can kill containers that bind host ports. Run `./dev.sh up` from a native terminal (Terminal.app, iTerm2) rather than Cursor's integrated terminal if containers are being killed with exit code 137.
 
-## Capability System
+## Tool System
 
-### Current capabilities
+### Current tools
 
-| Capability | Description |
+| Tool | Description |
 |---|---|
 | `spawn_task` | Create child tasks via `POST /api/tasks` |
 
-### Adding a new capability
+### Adding a new tool
 
-1. Choose a capability name (e.g., `read_file`, `web_search`).
-2. Add the handler in `capabilities.ts` — check `hasCapability(caller, 'your_cap')`.
+1. Choose a tool name (e.g., `read_file`, `web_search`).
+2. Add the handler in `tools.ts` — check `hasTool(caller, 'your_tool')`.
 3. Document the endpoint in `developer/tools.md` so workers know how to use it.
 4. If it needs new DB fields, add them to the `Job` interface, `CreateJobInput`, `initDb()` migration block, and `createJob()`.
 
@@ -49,7 +49,7 @@ The `allowed_paths` capability restricts which host directories a task can acces
 
 ## Future Development Ideas
 
-### Capability ideas
+### Tool ideas
 - **`read_results`** — let a task read the full result/transcript of a sibling or ancestor task.
 - **`cancel_task`** — let a parent cancel a running child task.
 - **`web_search`** / **`web_fetch`** — proxy web access through the orchestrator for sandboxed workers.

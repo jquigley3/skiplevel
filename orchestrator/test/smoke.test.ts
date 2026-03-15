@@ -161,16 +161,16 @@ test('getJobByToken returns a running job', () => {
     'Token should not resolve once job is done');
 });
 
-test('createJob with capabilities and parent_job_id', () => {
+test('createJob with tools and parent_job_id', () => {
   const parentId = db.createJob({
     prompt: 'Parent job',
     project_dir: tmpProjectDir,
-    capabilities: ['spawn_task'],
+    mc2_tools: ['spawn_task'],
   });
 
   const parent = db.getJob(parentId);
   assert.ok(parent);
-  assert.strictEqual(parent!.capabilities, '["spawn_task"]');
+  assert.strictEqual(parent!.mc2_tools, '["spawn_task"]');
 
   const childId = db.createJob({
     prompt: 'Child job',

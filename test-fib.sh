@@ -18,7 +18,7 @@ PROMPT='Your goal:
 4. Once both are done, run the tests (python3 -m pytest test_fib.py) in /tmp/fib-project and report the results.'
 
 "$SCRIPT_DIR/submit.sh" "$PROJECT_DIR" "$PROMPT" \
-  --capabilities spawn_task \
+  --tools spawn_task \
   --allowed-paths "$PROJECT_DIR" \
   --append-system-prompt-file "$SCRIPT_DIR/developer/tools.md"
 

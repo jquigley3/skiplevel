@@ -27,7 +27,7 @@ Authorization: Bearer $MC2_JOB_TOKEN
 
 ### Create a child task
 
-**Requires capability: `spawn_task`**
+**Requires tool: `spawn_task`**
 
 ```
 POST $MC2_API_URL/api/tasks
@@ -44,7 +44,7 @@ POST $MC2_API_URL/api/tasks
 | `max_budget_usd` | number | no | Maximum cost in USD |
 | `system_prompt` | string | no | Replace the child's entire system prompt |
 | `append_system_prompt` | string | no | Append to the child's default system prompt |
-| `capabilities` | string[] | no | Capabilities to grant the child (e.g., `["spawn_task"]`) |
+| `tools` | string[] | no | mc2 tools to grant the child (e.g., `["spawn_task"]`) |
 | `allowed_paths` | string[] | no | Directories the child can access (must be a subset of your own `allowed_paths`). Inherited from parent if omitted |
 | `priority` | number | no | Lower numbers run first. Default: 0 |
 

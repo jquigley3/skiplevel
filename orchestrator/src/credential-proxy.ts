@@ -15,7 +15,7 @@ import { request as httpsRequest } from 'https';
 import { request as httpRequest, RequestOptions } from 'http';
 
 import { readEnvFile } from './env.js';
-import { handleCapabilityRequest } from './capabilities.js';
+import { handleToolRequest } from './tools.js';
 import { logger } from './logger.js';
 
 export type AuthMode = 'api-key' | 'oauth';
@@ -54,11 +54,11 @@ export function startCredentialProxy(
         return;
       }
 
-      // Capability API — task spawning, polling, job management.
+      // Tool API — task spawning, polling, job management.
       // Intercept /api/tasks* and /api/jobs*; other /api/ paths (e.g. /api/oauth/) pass through.
       if (req.url?.startsWith('/api/tasks') || req.url?.startsWith('/api/jobs')) {
-        handleCapabilityRequest(req, res).catch((err) => {
-          logger.error({ err, url: req.url }, 'Capability API error');
+        handleToolRequest(req, res).catch((err) => {
+          logger.error({ err, url: req.url }, 'Tool API error');
           if (!res.headersSent) {
             res.writeHead(500, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ error: 'Internal server error' }));

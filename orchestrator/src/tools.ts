@@ -1,9 +1,9 @@
 /**
- * Capability API — lets authorized workers create and poll child tasks,
+ * Tool API — lets authorized workers create and poll child tasks,
  * and provides host-facing endpoints for job submission and monitoring.
  *
  * Worker endpoints (Bearer token auth via job_token):
- *   POST /api/tasks      — spawn a child task (requires "spawn_task" capability)
+ *   POST /api/tasks      — spawn a child task (requires "spawn_task" tool)
  *   GET  /api/tasks/:id  — get status/result of own child
  *   GET  /api/tasks      — list own children
  *
@@ -46,11 +46,11 @@ function authenticate(req: IncomingMessage): Job | null {
   return getJobByToken(token) ?? null;
 }
 
-function hasCapability(job: Job, cap: string): boolean {
-  if (!job.capabilities) return false;
+function hasTool(job: Job, tool: string): boolean {
+  if (!job.mc2_tools) return false;
   try {
-    const caps = JSON.parse(job.capabilities) as string[];
-    return caps.includes(cap);
+    const tools = JSON.parse(job.mc2_tools) as string[];
+    return tools.includes(tool);
   } catch {
     return false;
   }
@@ -90,8 +90,8 @@ async function handleCreateTask(
   res: ServerResponse,
   caller: Job,
 ): Promise<void> {
-  if (!hasCapability(caller, 'spawn_task')) {
-    json(res, 403, { error: 'Missing capability: spawn_task' });
+  if (!hasTool(caller, 'spawn_task')) {
+    json(res, 403, { error: 'Missing tool: spawn_task' });
     return;
   }
 
@@ -145,13 +145,13 @@ async function handleCreateTask(
     system_prompt: (body.system_prompt as string) ?? undefined,
     append_system_prompt: (body.append_system_prompt as string) ?? undefined,
     permission_mode: (body.permission_mode as string) ?? undefined,
-    capabilities: (body.capabilities as string[]) ?? undefined,
+    mc2_tools: (body.tools as string[]) ?? undefined,
     allowed_paths: effectivePaths,
     parent_job_id: caller.id,
     priority: (body.priority as number) ?? undefined,
   });
 
-  logger.info({ parentId: caller.id, childId: id }, 'Child task spawned via capability API');
+  logger.info({ parentId: caller.id, childId: id }, 'Child task spawned via tool API');
   json(res, 201, { id, status: 'pending' });
 }
 
@@ -187,7 +187,7 @@ function jobDetail(job: Job): Record<string, unknown> {
     prompt: job.prompt,
     project_dir: job.project_dir,
     model: job.model,
-    capabilities: job.capabilities ? JSON.parse(job.capabilities) : null,
+    tools: job.mc2_tools ? JSON.parse(job.mc2_tools) : null,
     allowed_paths: job.allowed_paths ? JSON.parse(job.allowed_paths) : null,
     parent_job_id: job.parent_job_id,
     result_text: job.result_text,
@@ -229,7 +229,7 @@ async function handleSubmitJob(
     system_prompt: (body.system_prompt as string) ?? undefined,
     append_system_prompt: (body.append_system_prompt as string) ?? undefined,
     permission_mode: (body.permission_mode as string) ?? undefined,
-    capabilities: (body.capabilities as string[]) ?? undefined,
+    mc2_tools: (body.tools as string[]) ?? undefined,
     allowed_paths: (body.allowed_paths as string[]) ?? undefined,
     priority: (body.priority as number) ?? undefined,
   });
@@ -295,7 +295,7 @@ async function handleJobsRoute(
  * Handle an incoming HTTP request to /api/*.
  * Returns true if the request was handled, false if the path didn't match.
  */
-export async function handleCapabilityRequest(
+export async function handleToolRequest(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
