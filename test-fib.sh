@@ -5,35 +5,22 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 PROJECT_DIR="/tmp/fib-project"
+rm -rf "$PROJECT_DIR"
 mkdir -p "$PROJECT_DIR"
 
-PROMPT='You have access to the macro-claw task API via environment variables.
-
-To create a sub-task:
-  curl -s -X POST "$MC2_API_URL/api/tasks" \
-    -H "Authorization: Bearer $MC2_JOB_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "{\"prompt\": \"...\", \"project_dir\": \"/tmp/fib-project\"}"
-
-To check a task status:
-  curl -s "$MC2_API_URL/api/tasks/<TASK_ID>" \
-    -H "Authorization: Bearer $MC2_JOB_TOKEN"
-
-To list all your sub-tasks:
-  curl -s "$MC2_API_URL/api/tasks" \
-    -H "Authorization: Bearer $MC2_JOB_TOKEN"
-
-Your goal:
-1. Choose a language (Python is fine) and create a project outline for a fibonacci calculator using recursion. Create the directory structure and any config files (e.g. a simple README) in /workspace/project.
+PROMPT='Your goal:
+1. Create a project outline for a recursive fibonacci calculator in Python. Create a README in /tmp/fib-project.
 2. Spawn TWO sub-tasks:
-   - Task A: "Write tests for a recursive fibonacci function. The project is in /workspace/project. Create a test file (e.g. test_fib.py) that tests fib(0)=0, fib(1)=1, fib(5)=5, fib(10)=55. Do not write the implementation."
-   - Task B: "Write a recursive fibonacci implementation. The project is in /workspace/project. Create a module (e.g. fib.py) with a function fib(n) that returns the nth fibonacci number using recursion. Do not write tests."
-3. Poll their status every 10 seconds until both are done.
-4. Once both are done, run the tests (e.g. python -m pytest or python -m unittest) and report the results. Review the code briefly.'
+   - Task A: "Write tests for a recursive fibonacci function. The project is in /tmp/fib-project. Create test_fib.py that tests fib(0)=0, fib(1)=1, fib(5)=5, fib(10)=55. Do not write the implementation."
+   - Task B: "Write a recursive fibonacci implementation. The project is in /tmp/fib-project. Create fib.py with a function fib(n) that returns the nth fibonacci number using recursion. Do not write tests."
+   Both tasks should have project_dir set to "/tmp/fib-project".
+3. Poll their status every 10 seconds until both are done or failed.
+4. Once both are done, run the tests (python3 -m pytest test_fib.py) in /tmp/fib-project and report the results.'
 
 "$SCRIPT_DIR/submit.sh" "$PROJECT_DIR" "$PROMPT" \
   --capabilities spawn_task \
-  --allowed-paths "$PROJECT_DIR"
+  --allowed-paths "$PROJECT_DIR" \
+  --append-system-prompt-file "$SCRIPT_DIR/developer/tools.md"
 
 echo ""
 echo "Monitor progress:  ./list.sh"
