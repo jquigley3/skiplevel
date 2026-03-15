@@ -1,0 +1,174 @@
+/**
+ * Capability API — lets authorized workers create and poll child tasks.
+ *
+ * Routes (mounted under /api/ on the credential proxy server):
+ *   POST /api/tasks      — spawn a child task (requires "spawn_task" capability)
+ *   GET  /api/tasks/:id  — get status/result of own child
+ *   GET  /api/tasks      — list own children
+ *
+ * Auth: Bearer token in Authorization header, validated against job_token in DB.
+ */
+import { IncomingMessage, ServerResponse } from 'http';
+
+import {
+  getJobByToken,
+  getJob,
+  createJob,
+  listChildJobs,
+  Job,
+} from './db.js';
+import { logger } from './logger.js';
+
+function json(res: ServerResponse, status: number, body: unknown): void {
+  res.writeHead(status, { 'content-type': 'application/json' });
+  res.end(JSON.stringify(body));
+}
+
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString()));
+    req.on('error', reject);
+  });
+}
+
+function authenticate(req: IncomingMessage): Job | null {
+  const auth = req.headers['authorization'];
+  if (!auth?.startsWith('Bearer ')) return null;
+  const token = auth.slice(7);
+  return getJobByToken(token) ?? null;
+}
+
+function hasCapability(job: Job, cap: string): boolean {
+  if (!job.capabilities) return false;
+  try {
+    const caps = JSON.parse(job.capabilities) as string[];
+    return caps.includes(cap);
+  } catch {
+    return false;
+  }
+}
+
+function jobSummary(job: Job): Record<string, unknown> {
+  return {
+    id: job.id,
+    status: job.status,
+    result_text: job.result_text,
+    error: job.error,
+    cost_usd: job.cost_usd,
+    duration_ms: job.duration_ms,
+    created_at: job.created_at,
+    started_at: job.started_at,
+    finished_at: job.finished_at,
+  };
+}
+
+async function handleCreateTask(
+  req: IncomingMessage,
+  res: ServerResponse,
+  caller: Job,
+): Promise<void> {
+  if (!hasCapability(caller, 'spawn_task')) {
+    json(res, 403, { error: 'Missing capability: spawn_task' });
+    return;
+  }
+
+  const raw = await readBody(req);
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    json(res, 400, { error: 'Invalid JSON body' });
+    return;
+  }
+
+  const prompt = body.prompt as string | undefined;
+  if (!prompt) {
+    json(res, 400, { error: 'Missing required field: prompt' });
+    return;
+  }
+
+  const id = createJob({
+    prompt,
+    project_dir: (body.project_dir as string) || caller.project_dir,
+    model: (body.model as string) ?? undefined,
+    max_turns: (body.max_turns as number) ?? undefined,
+    max_budget_usd: (body.max_budget_usd as number) ?? undefined,
+    system_prompt: (body.system_prompt as string) ?? undefined,
+    append_system_prompt: (body.append_system_prompt as string) ?? undefined,
+    permission_mode: (body.permission_mode as string) ?? undefined,
+    capabilities: (body.capabilities as string[]) ?? undefined,
+    parent_job_id: caller.id,
+    priority: (body.priority as number) ?? undefined,
+  });
+
+  logger.info({ parentId: caller.id, childId: id }, 'Child task spawned via capability API');
+  json(res, 201, { id, status: 'pending' });
+}
+
+function handleGetTask(
+  res: ServerResponse,
+  caller: Job,
+  taskId: string,
+): void {
+  const child = getJob(taskId);
+  if (!child || child.parent_job_id !== caller.id) {
+    json(res, 404, { error: 'Task not found' });
+    return;
+  }
+  json(res, 200, jobSummary(child));
+}
+
+function handleListTasks(
+  res: ServerResponse,
+  caller: Job,
+): void {
+  const children = listChildJobs(caller.id);
+  json(res, 200, { tasks: children.map(jobSummary) });
+}
+
+/**
+ * Handle an incoming HTTP request to /api/*.
+ * Returns true if the request was handled, false if the path didn't match.
+ */
+export async function handleCapabilityRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<boolean> {
+  const url = req.url ?? '';
+
+  if (!url.startsWith('/api/')) return false;
+
+  const caller = authenticate(req);
+  if (!caller) {
+    json(res, 401, { error: 'Unauthorized — invalid or missing Bearer token' });
+    return true;
+  }
+
+  const taskIdMatch = url.match(/^\/api\/tasks\/([^/?]+)/);
+
+  if (url === '/api/tasks' || url === '/api/tasks/') {
+    if (req.method === 'POST') {
+      await handleCreateTask(req, res, caller);
+    } else if (req.method === 'GET') {
+      handleListTasks(res, caller);
+    } else {
+      json(res, 405, { error: 'Method not allowed' });
+    }
+    return true;
+  }
+
+  if (taskIdMatch) {
+    const taskId = taskIdMatch[1];
+    if (req.method === 'GET') {
+      handleGetTask(res, caller, taskId);
+    } else {
+      json(res, 405, { error: 'Method not allowed' });
+    }
+    return true;
+  }
+
+  json(res, 404, { error: 'Unknown API endpoint' });
+  return true;
+}

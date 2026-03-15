@@ -1,21 +1,48 @@
 #!/usr/bin/env bash
-# Usage: ./submit.sh <project-dir> <prompt> [--model <model>] [--priority <n>]
+# Usage: ./submit.sh <project-dir> <prompt> [--model <m>] [--priority <n>] [--capabilities <c1,c2>]
 set -euo pipefail
 
 DB="${DB_PATH:-./orchestrator/data/macro-claw.db}"
-PROJECT_DIR="${1:?Usage: ./submit.sh <project-dir> <prompt>}"
-PROMPT="${2:?Usage: ./submit.sh <project-dir> <prompt>}"
-MODEL="${3:-}"
-PRIORITY="${4:-0}"
 
-JOB_ID=$(python3 -c "import uuid; print(uuid.uuid4())")
+PROJECT_DIR="${1:?Usage: ./submit.sh <project-dir> <prompt> [--model m] [--priority n] [--capabilities c1,c2]}"
+PROMPT="${2:?Usage: ./submit.sh <project-dir> <prompt> [--model m] [--priority n] [--capabilities c1,c2]}"
+shift 2
 
-# Escape single quotes in prompt for SQLite
-SAFE_PROMPT="${PROMPT//\'/\'\'}"
-MODEL_VAL=$([ -n "$MODEL" ] && echo "'$MODEL'" || echo "NULL")
+MODEL=""
+PRIORITY="0"
+CAPABILITIES=""
 
-sqlite3 "$DB" "INSERT INTO jobs (id, prompt, project_dir, model, priority)
-  VALUES ('$JOB_ID', '$SAFE_PROMPT', '$PROJECT_DIR', $MODEL_VAL, $PRIORITY);"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --model)      MODEL="$2"; shift 2 ;;
+    --priority)   PRIORITY="$2"; shift 2 ;;
+    --capabilities) CAPABILITIES="$2"; shift 2 ;;
+    *) echo "Unknown flag: $1" >&2; exit 1 ;;
+  esac
+done
 
-echo "Job submitted: $JOB_ID"
-echo "Check status:  ./result.sh $JOB_ID"
+python3 -c "
+import sqlite3, uuid, json, sys, os
+
+db_path = sys.argv[1]
+project_dir = sys.argv[2]
+prompt = sys.argv[3]
+model = sys.argv[4] or None
+priority = int(sys.argv[5])
+caps_csv = sys.argv[6]
+
+job_id = str(uuid.uuid4())
+capabilities = json.dumps(caps_csv.split(',')) if caps_csv else None
+
+conn = sqlite3.connect(db_path)
+conn.execute(
+    '''INSERT INTO jobs (id, prompt, project_dir, model, priority, capabilities)
+       VALUES (?, ?, ?, ?, ?, ?)''',
+    (job_id, prompt, project_dir, model, priority, capabilities),
+)
+conn.commit()
+conn.close()
+
+print(f'Job submitted: {job_id}')
+print(f'Check status:  ./result.sh {job_id}')
+" "$DB" "$PROJECT_DIR" "$PROMPT" "$MODEL" "$PRIORITY" "$CAPABILITIES"

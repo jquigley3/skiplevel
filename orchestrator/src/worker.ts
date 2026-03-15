@@ -22,6 +22,7 @@ import { logger } from './logger.js';
 
 export interface WorkerInput {
   jobId: string;
+  jobToken: string;
   suffix: string;
   prompt: string;
   workDir: string;        // Path the orchestrator sees (container or host)
@@ -106,6 +107,11 @@ function buildDockerArgs(input: WorkerInput, containerName: string): string[] {
     args.push('-e', 'CLAUDE_CODE_OAUTH_TOKEN=placeholder');
   }
 
+  // Capability API credentials — lets workers spawn/poll child tasks
+  args.push('-e', `MC2_JOB_ID=${input.jobId}`);
+  args.push('-e', `MC2_JOB_TOKEN=${input.jobToken}`);
+  args.push('-e', `MC2_API_URL=${proxyUrl}`);
+
   // Host gateway resolution (needed on Linux)
   args.push(...hostGatewayArgs());
 
@@ -174,8 +180,18 @@ export function runWorker(input: WorkerInput): Promise<WorkerResult> {
   }
 
   return new Promise((resolve) => {
+    const spawnEnv = claudeBin
+      ? {
+          ...process.env,
+          MC2_JOB_ID: input.jobId,
+          MC2_JOB_TOKEN: input.jobToken,
+          MC2_API_URL: process.env.MC2_API_URL ?? `http://127.0.0.1:${CREDENTIAL_PROXY_PORT}`,
+        }
+      : process.env;
+
     const container = spawn(bin, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: spawnEnv,
     });
 
     let stderr = '';

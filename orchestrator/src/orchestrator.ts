@@ -102,6 +102,7 @@ async function dispatchJob(job: Job): Promise<void> {
   try {
     const result: WorkerResult = await runWorker({
       jobId: job.id,
+      jobToken: job.job_token!,
       suffix,
       prompt: job.prompt,
       workDir,

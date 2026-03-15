@@ -126,3 +126,62 @@ test('jobCounts returns correct counts', () => {
   assert.ok(typeof counts.done === 'number');
   assert.ok(typeof counts.failed === 'number');
 });
+
+test('claimNextJob generates a job_token', () => {
+  db.createJob({ prompt: 'Token test', project_dir: tmpProjectDir });
+  const claimed = db.claimNextJob();
+  assert.ok(claimed);
+  assert.ok(claimed!.job_token, 'Claimed job should have a token');
+  assert.ok(claimed!.job_token!.length > 10, 'Token should be a UUID');
+
+  db.completeJob(claimed!.id, {
+    exit_code: 0, result_text: null, transcript: '', cost_usd: null,
+    duration_ms: 0, worker_container: 'test', worktree_path: null, worktree_branch: null,
+  });
+});
+
+test('getJobByToken returns a running job', () => {
+  db.createJob({ prompt: 'Token lookup test', project_dir: tmpProjectDir });
+  const claimed = db.claimNextJob();
+  assert.ok(claimed);
+
+  const found = db.getJobByToken(claimed!.job_token!);
+  assert.ok(found, 'Should find job by token');
+  assert.strictEqual(found!.id, claimed!.id);
+
+  assert.strictEqual(db.getJobByToken('bogus-token'), undefined);
+
+  db.completeJob(claimed!.id, {
+    exit_code: 0, result_text: null, transcript: '', cost_usd: null,
+    duration_ms: 0, worker_container: 'test', worktree_path: null, worktree_branch: null,
+  });
+
+  assert.strictEqual(db.getJobByToken(claimed!.job_token!), undefined,
+    'Token should not resolve once job is done');
+});
+
+test('createJob with capabilities and parent_job_id', () => {
+  const parentId = db.createJob({
+    prompt: 'Parent job',
+    project_dir: tmpProjectDir,
+    capabilities: ['spawn_task'],
+  });
+
+  const parent = db.getJob(parentId);
+  assert.ok(parent);
+  assert.strictEqual(parent!.capabilities, '["spawn_task"]');
+
+  const childId = db.createJob({
+    prompt: 'Child job',
+    project_dir: tmpProjectDir,
+    parent_job_id: parentId,
+  });
+
+  const child = db.getJob(childId);
+  assert.ok(child);
+  assert.strictEqual(child!.parent_job_id, parentId);
+
+  const children = db.listChildJobs(parentId);
+  assert.strictEqual(children.length, 1);
+  assert.strictEqual(children[0].id, childId);
+});

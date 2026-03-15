@@ -48,9 +48,9 @@ case "${1:-}" in
     # Ensure network exists
     docker network create macro-claw-net 2>/dev/null || true
 
-    # Run orchestrator (no fixed --name to avoid restart issues)
     docker run -d \
       --network macro-claw-net \
+      --network-alias macro-claw-orchestrator \
       -v "$SCRIPT_DIR/orchestrator/data:/app/data" \
       -v /var/run/docker.sock:/var/run/docker.sock \
       -v "$SCRIPT_DIR/.env:/app/.env:ro" \
@@ -78,7 +78,9 @@ case "${1:-}" in
     docker network rm macro-claw-net 2>/dev/null || true
     ;;
   logs)
-    docker logs -f macro-claw-orchestrator
+    ORCH_ID=$(docker ps -f ancestor=mc2-orchestrator -q | head -1)
+    [ -z "$ORCH_ID" ] && die "No running orchestrator found"
+    docker logs -f "$ORCH_ID"
     ;;
   token)
     command -v security &>/dev/null || die "macOS 'security' command required"
