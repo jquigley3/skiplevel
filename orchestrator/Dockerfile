@@ -5,8 +5,9 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Docker CLI (to spawn sibling containers)
-RUN curl -fsSL https://get.docker.com | sh
+# Install Docker CLI only (not the full daemon — we use the host socket)
+RUN curl -fsSL https://download.docker.com/linux/static/stable/$(uname -m)/docker-27.5.1.tgz \
+    | tar -xz --strip-components=1 -C /usr/local/bin docker/docker
 
 WORKDIR /app
 

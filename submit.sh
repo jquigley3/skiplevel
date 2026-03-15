@@ -2,7 +2,7 @@
 # Usage: ./submit.sh <project-dir> <prompt> [--model <model>] [--priority <n>]
 set -euo pipefail
 
-DB="${DB_PATH:-./data/macro-claw.db}"
+DB="${DB_PATH:-./orchestrator/data/macro-claw.db}"
 PROJECT_DIR="${1:?Usage: ./submit.sh <project-dir> <prompt>}"
 PROMPT="${2:?Usage: ./submit.sh <project-dir> <prompt>}"
 MODEL="${3:-}"

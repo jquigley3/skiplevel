@@ -45,11 +45,37 @@ case "${1:-}" in
       npm run typecheck
     ;;
   up)
-    docker compose -f "$SCRIPT_DIR/docker-compose.yaml" up -d
-    docker compose -f "$SCRIPT_DIR/docker-compose.yaml" ps
+    # Ensure network exists
+    docker network create macro-claw-net 2>/dev/null || true
+
+    # Run orchestrator
+    docker run -d \
+      --name macro-claw-orchestrator \
+      --network macro-claw-net \
+      -v "$SCRIPT_DIR/orchestrator/data:/app/data" \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      -v "$SCRIPT_DIR/.env:/app/.env:ro" \
+      --env-file "$SCRIPT_DIR/.env" \
+      -e CREDENTIAL_PROXY_PORT=3001 \
+      -e CREDENTIAL_PROXY_HOST=0.0.0.0 \
+      -e CONTAINER_IMAGE=macro-claw-worker:latest \
+      -e HARNESS_NETWORK=macro-claw-net \
+      -e WORKTREES_DIR=/workspace/worktrees \
+      -e HOST_WORKTREES_DIR=./worktrees \
+      mc2-orchestrator
+
+    sleep 3
+    if docker ps | grep -q orchestrator; then
+      docker logs macro-claw-orchestrator 2>&1 | tail -8
+    else
+      echo "ERROR: Orchestrator failed to start"
+      docker logs macro-claw-orchestrator 2>&1 || true
+      exit 1
+    fi
     ;;
   down)
-    docker compose -f "$SCRIPT_DIR/docker-compose.yaml" down
+    docker rm -f macro-claw-orchestrator 2>/dev/null || true
+    docker network rm macro-claw-net 2>/dev/null || true
     ;;
   logs)
     docker logs -f macro-claw-orchestrator

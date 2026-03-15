@@ -3,4 +3,6 @@ data/
 worktrees/
 orchestrator/node_modules/
 orchestrator/dist/
+.claude-session/
+plan/
 *.db

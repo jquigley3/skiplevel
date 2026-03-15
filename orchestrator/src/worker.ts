@@ -90,7 +90,13 @@ function buildDockerArgs(input: WorkerInput, containerName: string): string[] {
   args.push('-e', `TZ=${TIMEZONE}`);
 
   // Route API traffic through the credential proxy
-  args.push('-e', `ANTHROPIC_BASE_URL=http://${CONTAINER_HOST_GATEWAY}:${CREDENTIAL_PROXY_PORT}`);
+  // When on a Docker network, connect directly to orchestrator by name
+  // Otherwise use host gateway (for host-local mode)
+  const harnessNetwork = process.env.HARNESS_NETWORK;
+  const proxyUrl = harnessNetwork
+    ? `http://macro-claw-orchestrator:${CREDENTIAL_PROXY_PORT}`
+    : `http://${CONTAINER_HOST_GATEWAY}:${CREDENTIAL_PROXY_PORT}`;
+  args.push('-e', `ANTHROPIC_BASE_URL=${proxyUrl}`);
 
   // Auth placeholder — credential proxy replaces with real credentials
   const authMode = detectAuthMode();

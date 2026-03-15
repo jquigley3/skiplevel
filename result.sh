@@ -2,7 +2,7 @@
 # Usage: ./result.sh <job-id> [--transcript]
 set -euo pipefail
 
-DB="${DB_PATH:-./data/macro-claw.db}"
+DB="${DB_PATH:-./orchestrator/data/macro-claw.db}"
 JOB_ID="${1:?Usage: ./result.sh <job-id>}"
 SHOW_TRANSCRIPT="${2:-}"
 
