@@ -37,6 +37,11 @@ import {
   setProjectPermission,
   removeProjectPermission,
   listProjectPermissions,
+  createPermissionRequest,
+  getPermissionRequest,
+  listPermissionRequests,
+  approveRequest,
+  denyRequest,
 } from './permissions.js';
 import { logger } from './logger.js';
 
@@ -248,6 +253,139 @@ function handleGetPermissions(res: ServerResponse, caller: Job): void {
   });
 }
 
+function permissionRequestSummary(req: { id: string; token_name: string; job_id: string; reason: string | null; duration_minutes: number; can_delegate: number; status: string; decided_at: string | null; decided_reason: string | null; created_at: string }): Record<string, unknown> {
+  return {
+    id: req.id,
+    token_name: req.token_name,
+    job_id: req.job_id,
+    reason: req.reason,
+    duration_minutes: req.duration_minutes,
+    can_delegate: req.can_delegate === 1,
+    status: req.status,
+    decided_at: req.decided_at,
+    decided_reason: req.decided_reason,
+    created_at: req.created_at,
+  };
+}
+
+async function handlePermissionRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  caller: Job,
+): Promise<void> {
+  const url = req.url ?? '';
+  const requestIdMatch = url.match(/^\/api\/permissions\/request\/([^/?]+)/);
+
+  if (url === '/api/permissions/request' || url === '/api/permissions/request/') {
+    if (req.method === 'POST') {
+      const raw = await readBody(req);
+      let body: Record<string, unknown>;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        json(res, 400, { error: 'Invalid JSON body' });
+        return;
+      }
+      const tokenName = body.token_name as string | undefined;
+      const reason = body.reason as string | undefined;
+      const durationMinutes = (body.duration_minutes as number) ?? 30;
+      const canDelegate = (body.can_delegate as boolean) ?? false;
+      const wait = (body.wait as boolean) ?? false;
+      const waitTimeoutSeconds = Math.min((body.wait_timeout_seconds as number) ?? 300, 600);
+
+      if (!tokenName) {
+        json(res, 400, { error: 'Missing required field: token_name' });
+        return;
+      }
+
+      let requestId: string;
+      try {
+        requestId = createPermissionRequest({
+          tokenName,
+          jobId: caller.id,
+          reason,
+          durationMinutes,
+          canDelegate,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        json(res, 400, { error: msg });
+        return;
+      }
+
+      if (!wait) {
+        const pr = getPermissionRequest(requestId)!;
+        json(res, 201, {
+          status: 'pending',
+          request_id: requestId,
+          message: 'Request is pending human approval. Poll GET /api/permissions/request/<id> or retry with wait.',
+        });
+        return;
+      }
+
+      // Long-poll: check periodically until decided or timeout
+      const start = Date.now();
+      const pollIntervalMs = 500;
+      while (Date.now() - start < waitTimeoutSeconds * 1000) {
+        const pr = getPermissionRequest(requestId);
+        if (!pr) {
+          json(res, 404, { error: 'Request not found' });
+          return;
+        }
+        if (pr.status === 'approved') {
+          const perms = getJobPermissions(caller.id);
+          const match = perms.find((p) => p.token_name === pr.token_name);
+          json(res, 200, {
+            status: 'approved',
+            permission_id: match?.id ?? 'created',
+            expires_at: match?.expires_at ?? new Date(Date.now() + durationMinutes * 60 * 1000).toISOString(),
+          });
+          return;
+        }
+        if (pr.status === 'denied') {
+          json(res, 200, { status: 'denied', reason: pr.decided_reason ?? 'Denied' });
+          return;
+        }
+        await new Promise((r) => setTimeout(r, pollIntervalMs));
+      }
+
+      json(res, 200, {
+        status: 'pending',
+        request_id: requestId,
+        message: 'Request is pending human approval. Poll GET /api/permissions/request/<id> or retry with wait.',
+      });
+    } else {
+      json(res, 405, { error: 'Method not allowed' });
+    }
+    return;
+  }
+
+  if (requestIdMatch && req.method === 'GET') {
+    const requestId = requestIdMatch[1];
+    const pr = getPermissionRequest(requestId);
+    if (!pr || pr.job_id !== caller.id) {
+      json(res, 404, { error: 'Request not found' });
+      return;
+    }
+    if (pr.status === 'approved') {
+      const perms = getJobPermissions(caller.id);
+      const match = perms.find((p) => p.token_name === pr.token_name);
+      json(res, 200, {
+        ...permissionRequestSummary(pr),
+        permission_id: match?.id,
+        expires_at: match?.expires_at,
+      });
+    } else if (pr.status === 'denied') {
+      json(res, 200, { ...permissionRequestSummary(pr), reason: pr.decided_reason });
+    } else {
+      json(res, 200, permissionRequestSummary(pr));
+    }
+    return;
+  }
+
+  json(res, 404, { error: 'Unknown endpoint' });
+}
+
 // ---------------------------------------------------------------------------
 // Token registry (/api/tokens) — host-facing, no auth
 // ---------------------------------------------------------------------------
@@ -399,6 +537,73 @@ async function handleProjectPermissionsRoute(
     removeProjectPermission(id);
     logger.info({ id }, 'Project permission removed');
     json(res, 200, { id, status: 'deleted' });
+    return true;
+  }
+
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Permission requests (/api/permissions/requests) — host-facing, no auth
+// ---------------------------------------------------------------------------
+
+async function handlePermissionRequestsRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<boolean> {
+  const url = req.url ?? '';
+  const approveMatch = url.match(/^\/api\/permissions\/requests\/([^/]+)\/approve\/?$/);
+  const denyMatch = url.match(/^\/api\/permissions\/requests\/([^/]+)\/deny\/?$/);
+
+  if (url === '/api/permissions/requests' || url === '/api/permissions/requests/') {
+    if (req.method === 'GET') {
+      const parsed = new URL(url, 'http://localhost');
+      const status = parsed.searchParams.get('status') as 'pending' | 'approved' | 'denied' | undefined;
+      const requests = listPermissionRequests(status);
+      json(res, 200, { requests: requests.map(permissionRequestSummary) });
+    } else {
+      json(res, 405, { error: 'Method not allowed' });
+    }
+    return true;
+  }
+
+  if (approveMatch && req.method === 'POST') {
+    const requestId = approveMatch[1];
+    const raw = await readBody(req);
+    let body: Record<string, unknown> = {};
+    if (raw) {
+      try {
+        body = JSON.parse(raw);
+      } catch { /* optional body */ }
+    }
+    const durationMinutes = body.duration_minutes as number | undefined;
+    try {
+      const permId = approveRequest(requestId, durationMinutes);
+      json(res, 200, { status: 'approved', permission_id: permId });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      json(res, 400, { error: msg });
+    }
+    return true;
+  }
+
+  if (denyMatch && req.method === 'POST') {
+    const requestId = denyMatch[1];
+    const raw = await readBody(req);
+    let body: Record<string, unknown> = {};
+    if (raw) {
+      try {
+        body = JSON.parse(raw);
+      } catch { /* optional body */ }
+    }
+    const reason = body.reason as string | undefined;
+    try {
+      denyRequest(requestId, reason);
+      json(res, 200, { status: 'denied' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      json(res, 400, { error: msg });
+    }
     return true;
   }
 
@@ -563,6 +768,11 @@ export async function handleToolRequest(
     return handleProjectPermissionsRoute(req, res);
   }
 
+  // Host-facing /api/permissions/requests — list, approve, deny
+  if (url.startsWith('/api/permissions/requests')) {
+    return handlePermissionRequestsRoute(req, res);
+  }
+
   // Worker endpoints below require Bearer token auth
   const caller = authenticate(req);
   if (!caller) {
@@ -578,6 +788,11 @@ export async function handleToolRequest(
     } else {
       json(res, 405, { error: 'Method not allowed' });
     }
+    return true;
+  }
+
+  if (url.startsWith('/api/permissions/request')) {
+    await handlePermissionRequest(req, res, caller);
     return true;
   }
 

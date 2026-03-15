@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Project permissions and approval queue for scoped permissions.
 # Usage:
+#   ./permissions.sh pending                           # list pending requests
+#   ./permissions.sh approve <request-id> [--duration <min>]
+#   ./permissions.sh deny <request-id> [--reason "..."]
 #   ./permissions.sh project-add --project <dir> --token <name> [--can-delegate] --duration <min>
 #   ./permissions.sh project-list
 #   ./permissions.sh project-remove <id>
-#
-# Phase 3 (pending/approve/deny) will be added later.
 set -euo pipefail
 
 MC2_API="${MC2_API_URL:-http://localhost:3001}"
@@ -77,12 +78,55 @@ print(json.dumps({
       exit 1
     fi
     ;;
-  pending|approve|deny)
-    echo "Phase 3: $1 not yet implemented" >&2
-    exit 1
+  pending)
+    curl -s "$MC2_API/api/permissions/requests?status=pending" | python3 -m json.tool
+    ;;
+  approve)
+    REQ_ID="${2:?Usage: ./permissions.sh approve <request-id> [--duration <min>]}"
+    shift 2
+    DURATION=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --duration) DURATION="$2"; shift 2 ;;
+        *) echo "Unknown flag: $1" >&2; exit 1 ;;
+      esac
+    done
+    BODY="{}"
+    [[ -n "$DURATION" ]] && BODY=$(python3 -c "import json; print(json.dumps({'duration_minutes': int('$DURATION')}))")
+    RESP=$(curl -s -X POST "$MC2_API/api/permissions/requests/$REQ_ID/approve" -H "Content-Type: application/json" -d "$BODY")
+    if echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('status')=='approved' else 1)" 2>/dev/null; then
+      PERM_ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('permission_id',''))" 2>/dev/null)
+      echo "Request approved (permission: $PERM_ID)"
+    else
+      echo "Error: $RESP" >&2
+      exit 1
+    fi
+    ;;
+  deny)
+    REQ_ID="${2:?Usage: ./permissions.sh deny <request-id> [--reason \"...\"]}"
+    shift 2
+    REASON=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --reason) REASON="$2"; shift 2 ;;
+        *) echo "Unknown flag: $1" >&2; exit 1 ;;
+      esac
+    done
+    BODY="{}"
+    [[ -n "$REASON" ]] && BODY=$(python3 -c "import json,sys; print(json.dumps({'reason': sys.argv[1]}))" "$REASON")
+    RESP=$(curl -s -X POST "$MC2_API/api/permissions/requests/$REQ_ID/deny" -H "Content-Type: application/json" -d "$BODY")
+    if echo "$RESP" | python3 -c "import sys,json; sys.exit(0 if json.load(sys.stdin).get('status')=='denied' else 1)" 2>/dev/null; then
+      echo "Request denied"
+    else
+      echo "Error: $RESP" >&2
+      exit 1
+    fi
     ;;
   *)
     echo "Usage: ./permissions.sh <command> [args]"
+    echo "  pending         List pending permission requests"
+    echo "  approve         Approve request (--duration to override)"
+    echo "  deny            Deny request (--reason for message)"
     echo "  project-add     Add project auto-grant (--project, --token, [--can-delegate], --duration)"
     echo "  project-list    List project permissions"
     echo "  project-remove  Remove project permission by id"

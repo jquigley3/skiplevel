@@ -554,3 +554,82 @@ test('removeProjectPermission removes project perm', () => {
   const list = permissions.listProjectPermissions();
   assert.ok(!list.some((pp) => pp.id === ppId));
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3: Permission requests
+// ---------------------------------------------------------------------------
+
+test('createPermissionRequest creates pending request', () => {
+  const tokenId = permissions.createToken({
+    name: 'req-token-' + Date.now(),
+    url_pattern: 'https://req\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const token = permissions.getToken(tokenId)!;
+  const jobId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  const reqId = permissions.createPermissionRequest({
+    tokenName: token.name,
+    jobId,
+    reason: 'Need for test',
+    durationMinutes: 30,
+    canDelegate: false,
+  });
+  const req = permissions.getPermissionRequest(reqId);
+  assert.ok(req);
+  assert.strictEqual(req!.status, 'pending');
+  assert.strictEqual(req!.token_name, token.name);
+});
+
+test('approveRequest creates permission and updates request', () => {
+  const tokenId = permissions.createToken({
+    name: 'approve-token-' + Date.now(),
+    url_pattern: 'https://appr\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const token = permissions.getToken(tokenId)!;
+  const jobId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  const reqId = permissions.createPermissionRequest({
+    tokenName: token.name,
+    jobId,
+    durationMinutes: 45,
+    canDelegate: true,
+  });
+  const permId = permissions.approveRequest(reqId);
+  assert.ok(permId);
+  const req = permissions.getPermissionRequest(reqId);
+  assert.strictEqual(req!.status, 'approved');
+  const perm = permissions.hasPermission(jobId, tokenId);
+  assert.ok(perm);
+  assert.strictEqual(perm!.can_delegate, 1);
+});
+
+test('denyRequest updates request status', () => {
+  const tokenId = permissions.createToken({
+    name: 'deny-token-' + Date.now(),
+    url_pattern: 'https://deny\\.com/.*',
+    inject_header: 'X-Key',
+    inject_value: 'v',
+  });
+  const token = permissions.getToken(tokenId)!;
+  const jobId = db.createJob({ prompt: 'P', project_dir: tmpProjectDir });
+  const reqId = permissions.createPermissionRequest({
+    tokenName: token.name,
+    jobId,
+    durationMinutes: 10,
+    canDelegate: false,
+  });
+  permissions.denyRequest(reqId, 'Not needed');
+  const req = permissions.getPermissionRequest(reqId);
+  assert.strictEqual(req!.status, 'denied');
+  assert.strictEqual(req!.decided_reason, 'Not needed');
+  assert.strictEqual(permissions.hasPermission(jobId, tokenId), null);
+});
+
+test('listPermissionRequests filters by status', () => {
+  const pending = permissions.listPermissionRequests('pending');
+  const approved = permissions.listPermissionRequests('approved');
+  assert.ok(Array.isArray(pending));
+  assert.ok(Array.isArray(approved));
+});

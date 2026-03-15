@@ -164,6 +164,24 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_project_permissions_dir ON project_permissions(project_dir);
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS permission_requests (
+      id               TEXT PRIMARY KEY,
+      token_name       TEXT NOT NULL,
+      job_id           TEXT NOT NULL,
+      reason           TEXT,
+      duration_minutes  INTEGER NOT NULL,
+      can_delegate     INTEGER NOT NULL DEFAULT 0,
+      status           TEXT NOT NULL DEFAULT 'pending',
+      decided_at       TEXT,
+      decided_reason    TEXT,
+      created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (job_id) REFERENCES jobs(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_permission_requests_status ON permission_requests(status);
+    CREATE INDEX IF NOT EXISTS idx_permission_requests_job ON permission_requests(job_id);
+  `);
+
   // Migrate: add columns that may not exist in older databases
   const cols = db.prepare("PRAGMA table_info(jobs)").all() as Array<{ name: string }>;
   const colNames = new Set(cols.map((c) => c.name));

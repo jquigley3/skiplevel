@@ -262,3 +262,104 @@ export function grantJobPermissions(
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+// Permission requests (human approval)
+// ---------------------------------------------------------------------------
+
+export interface PermissionRequest {
+  id: string;
+  token_name: string;
+  job_id: string;
+  reason: string | null;
+  duration_minutes: number;
+  can_delegate: number;
+  status: 'pending' | 'approved' | 'denied';
+  decided_at: string | null;
+  decided_reason: string | null;
+  created_at: string;
+}
+
+export interface CreatePermissionRequestInput {
+  tokenName: string;
+  jobId: string;
+  reason?: string;
+  durationMinutes: number;
+  canDelegate: boolean;
+}
+
+/** Create a permission request. Returns request ID. */
+export function createPermissionRequest(input: CreatePermissionRequestInput): string {
+  const token = getTokenByName(input.tokenName);
+  if (!token) {
+    throw new Error(`Unknown token: ${input.tokenName}`);
+  }
+  const id = crypto.randomUUID();
+  getDb().prepare(`
+    INSERT INTO permission_requests (id, token_name, job_id, reason, duration_minutes, can_delegate, status)
+    VALUES (?, ?, ?, ?, ?, ?, 'pending')
+  `).run(
+    id,
+    input.tokenName,
+    input.jobId,
+    input.reason ?? null,
+    input.durationMinutes,
+    input.canDelegate ? 1 : 0,
+  );
+  return id;
+}
+
+/** Get a permission request by ID. */
+export function getPermissionRequest(id: string): PermissionRequest | undefined {
+  return getDb().prepare('SELECT * FROM permission_requests WHERE id = ?').get(id) as PermissionRequest | undefined;
+}
+
+/** List permission requests, optionally filtered by status. */
+export function listPermissionRequests(status?: 'pending' | 'approved' | 'denied'): PermissionRequest[] {
+  const db = getDb();
+  if (status) {
+    return db.prepare('SELECT * FROM permission_requests WHERE status = ? ORDER BY created_at ASC').all(status) as PermissionRequest[];
+  }
+  return db.prepare('SELECT * FROM permission_requests ORDER BY created_at ASC').all() as PermissionRequest[];
+}
+
+/** Approve a permission request. Creates permission, updates request. Returns permission ID. */
+export function approveRequest(requestId: string, durationMinutes?: number): string {
+  const req = getPermissionRequest(requestId);
+  if (!req) {
+    throw new Error('Permission request not found');
+  }
+  if (req.status !== 'pending') {
+    throw new Error(`Request already ${req.status}`);
+  }
+  const token = getTokenByName(req.token_name);
+  if (!token) {
+    throw new Error(`Token ${req.token_name} no longer exists`);
+  }
+  const duration = durationMinutes ?? req.duration_minutes;
+  const permId = grantPermission({
+    tokenId: token.id,
+    jobId: req.job_id,
+    canDelegate: req.can_delegate === 1,
+    grantedBy: 'human',
+    durationMinutes: duration,
+  });
+  getDb().prepare(`
+    UPDATE permission_requests SET status = 'approved', decided_at = datetime('now') WHERE id = ?
+  `).run(requestId);
+  return permId;
+}
+
+/** Deny a permission request. */
+export function denyRequest(requestId: string, reason?: string): void {
+  const req = getPermissionRequest(requestId);
+  if (!req) {
+    throw new Error('Permission request not found');
+  }
+  if (req.status !== 'pending') {
+    throw new Error(`Request already ${req.status}`);
+  }
+  getDb().prepare(`
+    UPDATE permission_requests SET status = 'denied', decided_at = datetime('now'), decided_reason = ? WHERE id = ?
+  `).run(reason ?? null, requestId);
+}
