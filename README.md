@@ -47,3 +47,7 @@ Sub-agents run via `sandbox-exec` with a profile that:
 - macOS workstation with `sandbox-exec`
 - Claude Code CLI 2.1.76
 - PKB at `/Users/josh/claude/pkb/`
+
+---
+
+[ClawForge on GitHub](https://github.com/jquigley3/clawforge)
