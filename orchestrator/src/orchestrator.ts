@@ -4,11 +4,13 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 import { logger } from './logger.js';
-import { startCredentialProxy } from './credential-proxy.js';
+import { startCredentialProxy, getLastRetryAfterSeconds } from './credential-proxy.js';
 import { ensureContainerRuntimeRunning, cleanupOrphans } from './container-runtime.js';
 import {
   JOB_POLL_INTERVAL,
   MAX_CONCURRENT_WORKERS,
+  MAX_RETRIES,
+  RETRY_BASE_DELAY_MS,
   WORKTREES_DIR,
 } from './config.js';
 import {
@@ -16,11 +18,12 @@ import {
   claimNextJob,
   completeJob,
   failJob,
+  requeueJob,
   resetStaleJobs,
   jobCounts,
   Job,
 } from './db.js';
-import { runWorker, WorkerResult } from './worker.js';
+import { runWorker, WorkerResult, isRetryableError, parseRetryAfterFromError } from './worker.js';
 
 // ---------------------------------------------------------------------------
 // Git worktree management
@@ -136,8 +139,44 @@ async function dispatchJob(job: Job): Promise<void> {
         'Job completed successfully',
       );
     } else {
-      failJob(job.id, result.error ?? 'Unknown error', durationMs, result.containerName);
-      logger.error({ jobId: job.id, error: result.error, durationMs }, 'Job failed');
+      const error = result.error ?? 'Unknown error';
+      const retryCount = (job.retry_count ?? 0) + 1;
+
+      if (isRetryableError(error) && retryCount <= MAX_RETRIES) {
+        let delayMs: number;
+        const fromError = parseRetryAfterFromError(error);
+        const fromProxy = getLastRetryAfterSeconds();
+        if (fromError != null && fromError > 0) {
+          delayMs = fromError * 1000;
+          logger.warn(
+            { jobId: job.id, retryCount, maxRetries: MAX_RETRIES, delayMs, source: 'error' },
+            'Retryable error — requeued using retry-after from API response',
+          );
+        } else if (fromProxy != null && fromProxy > 0) {
+          delayMs = fromProxy * 1000;
+          logger.warn(
+            { jobId: job.id, retryCount, maxRetries: MAX_RETRIES, delayMs, source: 'proxy' },
+            'Retryable error — requeued using retry-after from API response',
+          );
+        } else {
+          delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount - 1);
+          logger.warn(
+            { jobId: job.id, retryCount, maxRetries: MAX_RETRIES, delayMs, source: 'backoff' },
+            'Retryable error — requeued with exponential backoff (no retry-after from API)',
+          );
+        }
+        requeueJob(job.id, retryCount, delayMs);
+      } else {
+        failJob(job.id, error, durationMs, result.containerName);
+        if (isRetryableError(error)) {
+          logger.error(
+            { jobId: job.id, retryCount, maxRetries: MAX_RETRIES, error, durationMs },
+            'Job failed — max retries exhausted',
+          );
+        } else {
+          logger.error({ jobId: job.id, error, durationMs }, 'Job failed — not retryable');
+        }
+      }
       if (worktree) removeWorktree(job.project_dir, worktree);
     }
   } catch (err) {

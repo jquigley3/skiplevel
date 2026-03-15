@@ -40,6 +40,8 @@ export interface Job {
   worker_container: string | null;
   worktree_path: string | null;
   worktree_branch: string | null;
+  retry_count: number;
+  retry_after: string | null;
 }
 
 export interface CreateJobInput {
@@ -118,6 +120,8 @@ export function initDb(): void {
     ['allowed_paths', 'TEXT'],
     ['job_token', 'TEXT'],
     ['parent_job_id', 'TEXT'],
+    ['retry_count', 'INTEGER DEFAULT 0'],
+    ['retry_after', 'TEXT'],
   ];
   for (const [col, type] of migrations) {
     if (!colNames.has(col)) {
@@ -178,6 +182,7 @@ export function claimNextJob(): Job | undefined {
   const job = db.prepare(`
     SELECT * FROM jobs
     WHERE status = 'pending'
+      AND (retry_after IS NULL OR retry_after <= datetime('now'))
     ORDER BY priority ASC, created_at ASC
     LIMIT 1
   `).get() as Job | undefined;
@@ -250,6 +255,27 @@ export function failJob(
       worker_container = ?
     WHERE id = ?
   `).run(error, duration_ms, worker_container ?? null, id);
+}
+
+/** Set retry_after to the past so job becomes claimable (for testing). */
+export function setJobRetryAfterToPast(id: string): void {
+  db.prepare("UPDATE jobs SET retry_after = datetime('now', '-1 second') WHERE id = ?").run(id);
+}
+
+/** Requeue a failed job for retry with exponential backoff. */
+export function requeueJob(id: string, retryCount: number, delayMs: number): void {
+  const delaySec = Math.round(delayMs / 1000);
+  db.prepare(`
+    UPDATE jobs SET
+      status = 'pending',
+      started_at = NULL,
+      finished_at = NULL,
+      error = NULL,
+      job_token = NULL,
+      retry_count = ?,
+      retry_after = datetime('now', '+' || ? || ' seconds')
+    WHERE id = ?
+  `).run(retryCount, delaySec, id);
 }
 
 /** Count jobs by status. */

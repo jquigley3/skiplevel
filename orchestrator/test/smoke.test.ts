@@ -5,7 +5,7 @@ import path from 'path';
 import os from 'os';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import Database from 'better-sqlite3';
+import { isRetryableError, parseRetryAfterFromError } from '../src/worker.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -70,12 +70,16 @@ test('claimNextJob atomically moves pending to running', () => {
 });
 
 test('resetStaleJobs fails running jobs instead of retrying', () => {
-  const jobId = db.createJob({ prompt: 'Test stale job', project_dir: tmpProjectDir });
+  const jobId = db.createJob({
+    prompt: 'Test stale job',
+    project_dir: tmpProjectDir,
+    priority: -100,
+  });
 
-  // Simulate orchestrator crash: manually set to running
-  const rawDb = new Database(process.env.DB_PATH!);
-  rawDb.prepare("UPDATE jobs SET status = 'running' WHERE id = ?").run(jobId);
-  rawDb.close();
+  // Simulate orchestrator crash: claim job (sets running) then "crash" without completing
+  const claimed = db.claimNextJob();
+  assert.ok(claimed);
+  assert.strictEqual(claimed!.id, jobId);
 
   const count = db.resetStaleJobs();
   assert.ok(count >= 1, 'Should fail at least 1 stale job');
@@ -211,4 +215,100 @@ test('allowed_paths defaults to null when not specified', () => {
   const job = db.getJob(jobId);
   assert.ok(job);
   assert.strictEqual(job!.allowed_paths, null);
+});
+
+// ---------------------------------------------------------------------------
+// Retry / throttling
+// ---------------------------------------------------------------------------
+
+test('isRetryableError returns true for rate limit and token errors', () => {
+  assert.ok(isRetryableError('Error: 429 rate_limit_error'));
+  assert.ok(isRetryableError('HTTP 529 overloaded'));
+  assert.ok(isRetryableError('rate limit exceeded'));
+  assert.ok(isRetryableError('too many requests'));
+  assert.ok(isRetryableError('resource exhausted'));
+  assert.ok(isRetryableError('token limit exceeded'));
+  assert.ok(isRetryableError('billing quota reached'));
+});
+
+test('isRetryableError returns false for non-transient errors', () => {
+  assert.ok(!isRetryableError('Invalid prompt format'));
+  assert.ok(!isRetryableError('Tool execution failed'));
+  assert.ok(!isRetryableError('Permission denied'));
+  assert.ok(!isRetryableError('Container timeout'));
+  assert.ok(!isRetryableError('Spawn error: ENOENT'));
+});
+
+test('parseRetryAfterFromError extracts seconds from various formats', () => {
+  assert.strictEqual(parseRetryAfterFromError('{"retry_after": 60}'), 60);
+  assert.strictEqual(parseRetryAfterFromError('retry-after: 45'), 45);
+  assert.strictEqual(parseRetryAfterFromError('retry after 30 seconds'), 30);
+  assert.strictEqual(parseRetryAfterFromError('retry in 120s'), 120);
+  assert.strictEqual(parseRetryAfterFromError('wait 90 seconds'), 90);
+});
+
+test('parseRetryAfterFromError returns null when not found', () => {
+  assert.strictEqual(parseRetryAfterFromError('rate limit exceeded'), null);
+  assert.strictEqual(parseRetryAfterFromError('Unknown error'), null);
+  assert.strictEqual(parseRetryAfterFromError('{"type":"rate_limit_error"}'), null);
+});
+
+test('requeueJob resets job to pending with retry_count and retry_after', () => {
+  const jobId = db.createJob({
+    prompt: 'Retry test',
+    project_dir: tmpProjectDir,
+    priority: -100, // Ensure we claim this job (lowest priority number = first)
+  });
+  const claimed = db.claimNextJob();
+  assert.ok(claimed);
+  assert.strictEqual(claimed!.id, jobId, 'Should claim our job');
+
+  db.failJob(claimed!.id, 'rate limit 429', 100, 'test-container');
+  const failed = db.getJob(jobId);
+  assert.strictEqual(failed!.status, 'failed');
+
+  db.requeueJob(jobId, 1, 30_000); // 30s delay
+  const requeued = db.getJob(jobId);
+  assert.strictEqual(requeued!.status, 'pending');
+  assert.strictEqual(requeued!.retry_count, 1);
+  assert.ok(requeued!.retry_after, 'retry_after should be set');
+  assert.strictEqual(requeued!.error, null);
+  assert.strictEqual(requeued!.job_token, null);
+});
+
+test('claimNextJob skips pending jobs whose retry_after has not passed', () => {
+  // Clear other pending jobs so we only have our job
+  for (const j of db.listJobs('pending', 100)) {
+    db.completeJob(j.id, {
+      exit_code: 0, result_text: null, transcript: '', cost_usd: null,
+      duration_ms: 0, worker_container: 'test', worktree_path: null, worktree_branch: null,
+    });
+  }
+
+  const jobId = db.createJob({
+    prompt: 'Delayed retry',
+    project_dir: tmpProjectDir,
+    priority: -100,
+  });
+  const claimed = db.claimNextJob();
+  assert.ok(claimed);
+  assert.strictEqual(claimed!.id, jobId);
+
+  db.failJob(claimed!.id, '429 rate limit', 50);
+  db.requeueJob(jobId, 1, 3600_000); // 1 hour in future
+
+  const next = db.claimNextJob();
+  assert.strictEqual(next, undefined, 'Should not claim job with future retry_after');
+
+  // Set retry_after to the past so job becomes claimable
+  db.setJobRetryAfterToPast(jobId);
+
+  const nowClaimed = db.claimNextJob();
+  assert.ok(nowClaimed, 'Should claim once retry_after has passed');
+  assert.strictEqual(nowClaimed!.id, jobId);
+
+  db.completeJob(jobId, {
+    exit_code: 0, result_text: null, transcript: '', cost_usd: null,
+    duration_ms: 0, worker_container: 'test', worktree_path: null, worktree_branch: null,
+  });
 });

@@ -9,7 +9,7 @@
     "start": "node dist/orchestrator.js",
     "dev": "tsx src/orchestrator.ts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
-    "test": "tsx --test test/smoke.test.ts"
+    "test": "tsx --test test/smoke.test.ts --test-concurrency=1"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",

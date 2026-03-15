@@ -47,6 +47,14 @@ export const WORKTREES_DIR =
 // SQLite database path
 export const DB_PATH = process.env.DB_PATH || './data/macro-claw.db';
 
+// Retry policy for transient API errors (rate limits, overloaded).
+// Non-retryable errors (bad prompts, tool failures) always fail immediately.
+export const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || '3', 10);
+export const RETRY_BASE_DELAY_MS = parseInt(
+  process.env.RETRY_BASE_DELAY_MS || '30000',
+  10,
+);
+
 // Timezone for container processes
 export const TIMEZONE =
   process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;

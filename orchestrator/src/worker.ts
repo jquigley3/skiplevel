@@ -49,6 +49,47 @@ export interface WorkerResult {
 }
 
 // ---------------------------------------------------------------------------
+// Retryable error detection
+// ---------------------------------------------------------------------------
+
+const RETRYABLE_PATTERNS: RegExp[] = [
+  /\b429\b/,
+  /\b529\b/,
+  /rate[_\s-]?limit/i,
+  /too many requests/i,
+  /overloaded/i,
+  /resource[_\s-]?exhausted/i,
+  /token[s]?\s*(limit|exhausted|exceeded|quota)/i,
+  /billing|credit|quota/i,
+];
+
+/**
+ * Returns true only for transient API capacity errors (rate limits, overload,
+ * token/quota exhaustion). All other failures are considered non-retryable to
+ * avoid re-running broken prompts and burning tokens.
+ */
+export function isRetryableError(error: string): boolean {
+  return RETRYABLE_PATTERNS.some((re) => re.test(error));
+}
+
+/** Parse retry-after (seconds) from error text if present. Returns null if not found. */
+export function parseRetryAfterFromError(error: string): number | null {
+  // JSON error body: {"retry_after": 60} or similar
+  const jsonMatch = error.match(/"retry_after"\s*:\s*(\d+)/i);
+  if (jsonMatch) return parseInt(jsonMatch[1], 10);
+
+  // "retry after 60 seconds" or "retry-after: 60"
+  const textMatch = error.match(/retry[- ]?after[:\s]+(\d+)/i);
+  if (textMatch) return parseInt(textMatch[1], 10);
+
+  // "retry in 60s" or "wait 60 seconds"
+  const waitMatch = error.match(/(?:retry|wait)\s+(?:in\s+)?(\d+)\s*s/i);
+  if (waitMatch) return parseInt(waitMatch[1], 10);
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Build Claude CLI arguments
 // ---------------------------------------------------------------------------
 
