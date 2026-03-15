@@ -51,6 +51,7 @@ case "${1:-}" in
     docker run -d \
       --network macro-claw-net \
       --network-alias macro-claw-orchestrator \
+      -p 127.0.0.1:3001:3001 \
       -v "$SCRIPT_DIR/orchestrator/data:/app/data" \
       -v /var/run/docker.sock:/var/run/docker.sock \
       -v "$SCRIPT_DIR/.env:/app/.env:ro" \

@@ -2,7 +2,7 @@
 # Usage: ./submit.sh <project-dir> <prompt> [--model <m>] [--priority <n>] [--capabilities <c1,c2>] [--allowed-paths <p1,p2>]
 set -euo pipefail
 
-DB="${DB_PATH:-./orchestrator/data/macro-claw.db}"
+MC2_API="${MC2_API_URL:-http://localhost:3001}"
 
 PROJECT_DIR="${1:?Usage: ./submit.sh <project-dir> <prompt> [flags]}"
 PROMPT="${2:?Usage: ./submit.sh <project-dir> <prompt> [flags]}"
@@ -23,30 +23,40 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python3 -c "
-import sqlite3, uuid, json, sys
+# Build JSON payload via Python (handles arbitrary prompt content safely)
+PAYLOAD=$(python3 -c "
+import json, sys
 
-db_path = sys.argv[1]
-project_dir = sys.argv[2]
-prompt = sys.argv[3]
-model = sys.argv[4] or None
-priority = int(sys.argv[5])
-caps_csv = sys.argv[6]
-paths_csv = sys.argv[7]
+body = {
+    'prompt': sys.argv[1],
+    'project_dir': sys.argv[2],
+    'priority': int(sys.argv[3]),
+}
 
-job_id = str(uuid.uuid4())
-capabilities = json.dumps(caps_csv.split(',')) if caps_csv else None
-allowed_paths = json.dumps(paths_csv.split(',')) if paths_csv else None
+model = sys.argv[4]
+caps = sys.argv[5]
+paths = sys.argv[6]
 
-conn = sqlite3.connect(db_path)
-conn.execute(
-    '''INSERT INTO jobs (id, prompt, project_dir, model, priority, capabilities, allowed_paths)
-       VALUES (?, ?, ?, ?, ?, ?, ?)''',
-    (job_id, prompt, project_dir, model, priority, capabilities, allowed_paths),
-)
-conn.commit()
-conn.close()
+if model:
+    body['model'] = model
+if caps:
+    body['capabilities'] = caps.split(',')
+if paths:
+    body['allowed_paths'] = paths.split(',')
 
-print(f'Job submitted: {job_id}')
-print(f'Check status:  ./result.sh {job_id}')
-" "$DB" "$PROJECT_DIR" "$PROMPT" "$MODEL" "$PRIORITY" "$CAPABILITIES" "$ALLOWED_PATHS"
+print(json.dumps(body))
+" "$PROMPT" "$PROJECT_DIR" "$PRIORITY" "$MODEL" "$CAPABILITIES" "$ALLOWED_PATHS")
+
+RESPONSE=$(curl -s -X POST "$MC2_API/api/jobs" \
+  -H "Content-Type: application/json" \
+  -d "$PAYLOAD")
+
+JOB_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
+
+if [ -n "$JOB_ID" ]; then
+  echo "Job submitted: $JOB_ID"
+  echo "Check status:  ./result.sh $JOB_ID"
+else
+  echo "Error: $RESPONSE" >&2
+  exit 1
+fi

@@ -54,9 +54,9 @@ export function startCredentialProxy(
         return;
       }
 
-      // Capability API — task spawning, polling, etc.
-      // Only intercept /api/tasks*; other /api/ paths (e.g. /api/oauth/) pass through to upstream.
-      if (req.url?.startsWith('/api/tasks')) {
+      // Capability API — task spawning, polling, job management.
+      // Intercept /api/tasks* and /api/jobs*; other /api/ paths (e.g. /api/oauth/) pass through.
+      if (req.url?.startsWith('/api/tasks') || req.url?.startsWith('/api/jobs')) {
         handleCapabilityRequest(req, res).catch((err) => {
           logger.error({ err, url: req.url }, 'Capability API error');
           if (!res.headersSent) {

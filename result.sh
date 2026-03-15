@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
-# Usage: ./result.sh <job-id> [--transcript]
+# Usage: ./result.sh <job-id>
 set -euo pipefail
 
-DB="${DB_PATH:-./orchestrator/data/macro-claw.db}"
+MC2_API="${MC2_API_URL:-http://localhost:3001}"
 JOB_ID="${1:?Usage: ./result.sh <job-id>}"
-SHOW_TRANSCRIPT="${2:-}"
 
-if [ "$SHOW_TRANSCRIPT" = "--transcript" ]; then
-  sqlite3 -json "$DB" "SELECT id, status, result_text, transcript, cost_usd, duration_ms, error, worktree_path FROM jobs WHERE id = '$JOB_ID';"
-else
-  sqlite3 -json "$DB" "SELECT id, status, result_text, cost_usd, duration_ms, error, worktree_path FROM jobs WHERE id = '$JOB_ID';"
-fi
+curl -s "$MC2_API/api/jobs/$JOB_ID" | python3 -m json.tool

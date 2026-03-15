@@ -159,7 +159,7 @@ async function main(): Promise<void> {
   initDb();
   const staleCount = resetStaleJobs();
   if (staleCount > 0) {
-    logger.warn({ count: staleCount }, 'Reset stale running jobs to pending');
+    logger.warn({ count: staleCount }, 'Failed stale running jobs from previous run');
   }
 
   // Skip Docker check in local mode (CLAUDE_BINARY override)

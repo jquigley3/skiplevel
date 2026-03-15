@@ -69,7 +69,7 @@ test('claimNextJob atomically moves pending to running', () => {
   });
 });
 
-test('resetStaleJobs moves running back to pending', () => {
+test('resetStaleJobs fails running jobs instead of retrying', () => {
   const jobId = db.createJob({ prompt: 'Test stale job', project_dir: tmpProjectDir });
 
   // Simulate orchestrator crash: manually set to running
@@ -78,10 +78,11 @@ test('resetStaleJobs moves running back to pending', () => {
   rawDb.close();
 
   const count = db.resetStaleJobs();
-  assert.ok(count >= 1, 'Should reset at least 1 stale job');
+  assert.ok(count >= 1, 'Should fail at least 1 stale job');
 
   const job = db.getJob(jobId);
-  assert.strictEqual(job!.status, 'pending');
+  assert.strictEqual(job!.status, 'failed');
+  assert.ok(job!.error!.includes('Orchestrator restarted'));
 });
 
 test('completeJob stores result fields', () => {

@@ -269,10 +269,10 @@ export function listJobs(status?: string, limit = 50): Job[] {
   ).all(limit) as Job[];
 }
 
-/** Reset stale running jobs back to pending (e.g., after orchestrator crash). */
+/** Fail stale running jobs (e.g., after orchestrator crash). No retries. */
 export function resetStaleJobs(): number {
   const result = db.prepare(
-    "UPDATE jobs SET status = 'pending', started_at = NULL, job_token = NULL WHERE status = 'running'"
+    "UPDATE jobs SET status = 'failed', error = 'Orchestrator restarted — job was still running', finished_at = datetime('now'), job_token = NULL WHERE status = 'running'"
   ).run();
   return result.changes;
 }
