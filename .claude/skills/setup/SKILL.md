@@ -1,7 +1,7 @@
 ---
 name: setup
 description: >
-  Initialize macro-claw and verify environment readiness. Checks prerequisites (Docker, Node, credentials), installs dependencies, builds container images, and validates the orchestrator. Use whenever: (1) setting up macro-claw for the first time, (2) troubleshooting why the orchestrator won't start or isn't responding, (3) verifying your environment is ready before submitting jobs, (4) diagnosing broken installations, or (5) performing environment checks with --status. Also use for partial setups—if you're unsure what's missing or broken, this skill will pinpoint it with actionable fixes.
+  Initialize macro-claw and verify environment readiness. Checks prerequisites (Docker, credentials), builds container images, and validates the orchestrator. Use whenever: (1) setting up macro-claw for the first time, (2) troubleshooting why the orchestrator won't start or isn't responding, (3) verifying your environment is ready before submitting jobs, (4) diagnosing broken installations, or (5) performing environment checks with --status. Also use for partial setups—if you're unsure what's missing or broken, this skill will pinpoint it with actionable fixes.
 allowed-tools: Bash, Read, Write, Glob
 ---
 
@@ -11,10 +11,8 @@ Gather current state before doing anything. Each line produces a single token
 that the instructions below match on.
 
 !`docker info >/dev/null 2>&1 && echo DOCKER_OK || echo DOCKER_MISSING`
-!`node --version 2>/dev/null | grep -qE '^v(1[89]|[2-9][0-9])' && node --version || echo NODE_MISSING`
 !`test -f .env && echo DOTENV_OK || echo DOTENV_MISSING`
 !`grep -qE '^(ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN)=.+' .env 2>/dev/null && echo CREDS_OK || echo CREDS_MISSING`
-!`test -d orchestrator/node_modules && echo DEPS_OK || echo DEPS_MISSING`
 !`docker image inspect macro-claw-worker:latest >/dev/null 2>&1 && echo WORKER_IMAGE_OK || echo WORKER_IMAGE_MISSING`
 !`docker image inspect macro-claw-orchestrator >/dev/null 2>&1 && echo ORCH_IMAGE_OK || echo ORCH_IMAGE_MISSING`
 !`docker ps --filter name=macro-claw-orchestrator --filter status=running --format '{{.Names}}' 2>/dev/null | grep -q macro-claw-orchestrator && echo ORCH_RUNNING || echo ORCH_STOPPED`
@@ -22,14 +20,12 @@ that the instructions below match on.
 
 The lines above (in order) show:
 1. Docker daemon
-2. Node.js (v18+ required)
-3. `.env` file at project root
-4. Credentials in `.env` (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`)
-5. `orchestrator/node_modules`
-6. `macro-claw-worker:latest` Docker image
-7. Orchestrator Docker image
-8. Orchestrator container running
-9. `docker-compose.yaml` at project root
+2. `.env` file at project root
+3. Credentials in `.env` (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`)
+4. `macro-claw-worker:latest` Docker image
+5. Orchestrator Docker image
+6. Orchestrator container running
+7. `docker-compose.yaml` at project root
 
 ---
 
@@ -61,14 +57,7 @@ If `DOCKER_MISSING`:
   the daemon (`sudo systemctl start docker` on Linux).
 - Stop. Nothing else can proceed without Docker.
 
-#### Step 2 — Node.js
-
-If `NODE_MISSING`:
-- Print: Node.js 18+ is required but not found. Install via
-  https://nodejs.org or `brew install node`.
-- This is informational — continue checking the rest.
-
-#### Step 3 — .env file
+#### Step 2 — .env file
 
 If `DOTENV_MISSING`:
 - Copy `.env.example` to `.env`:
@@ -78,7 +67,7 @@ If `DOTENV_MISSING`:
 - Print: `.env` created from `.env.example`. You must add credentials
   before continuing.
 
-#### Step 4 — Credentials
+#### Step 3 — Credentials
 
 If `CREDS_MISSING`:
 - Determine whether the user likely has an API key or uses OAuth.
@@ -114,16 +103,7 @@ If `CREDS_MISSING`:
 
   Stop here.
 
-#### Step 5 — npm dependencies
-
-If `DEPS_MISSING`:
-- Run:
-  ```bash
-  cd orchestrator && npm install && cd ..
-  ```
-- Report result.
-
-#### Step 6 — Build images
+#### Step 4 — Build images
 
 If `WORKER_IMAGE_MISSING` or `ORCH_IMAGE_MISSING`:
 - First, verify `docker-compose.yaml` exists at project root (required by `./dev.sh build`)
@@ -134,7 +114,7 @@ If `WORKER_IMAGE_MISSING` or `ORCH_IMAGE_MISSING`:
 - This builds both the worker image (`macro-claw-worker:latest`) and the
   orchestrator image using the docker-compose.yaml configuration. Report result.
 
-#### Step 7 — Start orchestrator
+#### Step 5 — Start orchestrator
 
 If `ORCH_STOPPED`:
 - Run:
@@ -143,7 +123,7 @@ If `ORCH_STOPPED`:
   ```
 - Report result.
 
-#### Step 8 — Verify
+#### Step 6 — Verify
 
 After completing action steps, re-probe live state:
 
@@ -156,7 +136,7 @@ Report:
 - Credential proxy (port 3001): reachable or not
 - SQLite database: created or missing
 
-#### Step 9 — Summary
+#### Step 7 — Summary
 
 Print a final checklist. Use a checkmark for passing and X for failing.
 Include a one-line fix hint for any failures.
@@ -166,10 +146,8 @@ Include a one-line fix hint for any failures.
 ✅ Setup Complete — Ready to Submit Jobs
 
   [ok] Docker running
-  [ok] Node v22.x
   [ok] .env exists
   [ok] Credentials configured
-  [ok] Dependencies installed
   [ok] Worker image built
   [ok] Orchestrator image built
   [ok] Orchestrator running
@@ -191,7 +169,6 @@ Your environment is fully configured and ready.
          → Fix: echo 'ANTHROPIC_API_KEY=sk-ant-...' >> .env
          → Then re-run: /setup
 
-  [not checked] Dependencies installed
   [not checked] Worker image built
   [not checked] Orchestrator image built
   [not checked] Orchestrator running

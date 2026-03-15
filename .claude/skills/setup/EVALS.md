@@ -21,13 +21,12 @@ invoking `/setup`, and checking the output against expected behavior.
 
 **Setup state:**
 - No `.env` file
-- No `orchestrator/node_modules/`
 - No Docker images built
 - Docker daemon running
 
 **Expected behavior:**
 1. Detects missing `.env`, copies from `.env.example`
-2. Stops with credential instructions (does not proceed to npm install)
+2. Stops with credential instructions (does not proceed to image builds)
 3. Output contains "credentials" guidance
 4. Does NOT attempt to build images or start containers
 
@@ -40,19 +39,16 @@ invoking `/setup`, and checking the output against expected behavior.
 
 **Setup state:**
 - `.env` with `ANTHROPIC_API_KEY=sk-ant-test-key`
-- No `orchestrator/node_modules/`
 - No Docker images
 - Docker running
 
 **Expected behavior:**
 1. Detects credentials present
-2. Runs `npm install`
-3. Builds images (`./dev.sh build`)
-4. Starts orchestrator (`./dev.sh up`)
-5. Prints green summary
+2. Builds images (`./dev.sh build`)
+3. Starts orchestrator (`./dev.sh up`)
+4. Prints green summary
 
 **Pass criteria:**
-- `node_modules/` exists after
 - Worker image exists (`docker image inspect macro-claw-worker:latest`)
 - Orchestrator container running
 - Summary shows all items passing
@@ -61,7 +57,6 @@ invoking `/setup`, and checking the output against expected behavior.
 
 **Setup state:**
 - `.env` with credentials
-- Dependencies installed
 - Images built
 - Orchestrator running
 
@@ -71,7 +66,7 @@ invoking `/setup`, and checking the output against expected behavior.
 3. Prints green summary immediately
 
 **Pass criteria:**
-- No `npm install`, `docker build`, or `docker compose up` commands run
+- No `docker build` or `docker compose up` commands run
 - Output is a clean summary with all passing
 
 ### E4 — --check-only flag
@@ -84,7 +79,7 @@ invoking `/setup`, and checking the output against expected behavior.
 
 **Pass criteria:**
 - Zero side effects (no files created, no commands run beyond probes)
-- Output contains status for all 8+ items
+- Output contains status for all 7 items
 
 ### E5 — Docker not running
 
@@ -115,13 +110,12 @@ invoking `/setup`, and checking the output against expected behavior.
 
 **Pass criteria:**
 - `.env` contains `CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat...`
-- Setup continues past step 4
+- Setup continues past step 3
 
 ### E7 — Partial failure recovery
 
 **Setup state:**
 - `.env` with credentials
-- Dependencies installed
 - Worker image built
 - Orchestrator image missing (deleted manually)
 
